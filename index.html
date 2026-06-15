@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#19b8a6">
+  <meta name="description" content="Prywatny dzienniczek podań hormonu wzrostu z obsługą głosową, klawiaturą, kalendarzem i historią.">
+  <title>Dzienniczek hormonu wzrostu</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Przejdź do treści</a>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Nawigacja główna">
+      <div class="brand brand--desktop">
+        <img src="./icon-192.png" alt="" width="46" height="46">
+        <div>
+          <strong>Dzienniczek</strong>
+          <span>hormonu wzrostu</span>
+        </div>
+      </div>
+
+      <nav class="desktop-nav" aria-label="Sekcje aplikacji">
+        <button class="nav-button is-active" type="button" data-view="today" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">⌂</span>
+          <span>Dzisiaj</span>
+          <kbd>Alt+1</kbd>
+        </button>
+        <button class="nav-button" type="button" data-view="calendar">
+          <span class="nav-icon" aria-hidden="true">▦</span>
+          <span>Kalendarz</span>
+          <kbd>Alt+2</kbd>
+        </button>
+        <button class="nav-button" type="button" data-view="history">
+          <span class="nav-icon" aria-hidden="true">↺</span>
+          <span>Historia</span>
+          <kbd>Alt+3</kbd>
+        </button>
+        <button class="nav-button" type="button" data-view="more">
+          <span class="nav-icon" aria-hidden="true">•••</span>
+          <span>Więcej</span>
+          <kbd>Alt+4</kbd>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="desktop-install-button" class="text-button is-hidden" type="button">Zainstaluj aplikację</button>
+        <p id="version-label">Wersja —</p>
+      </div>
+    </aside>
+
+    <div class="app-content">
+      <header class="topbar">
+        <div class="brand brand--mobile">
+          <img src="./icon-192.png" alt="" width="42" height="42">
+          <div>
+            <strong>Dzienniczek</strong>
+            <span>hormonu wzrostu</span>
+          </div>
+        </div>
+
+        <div class="topbar-date">
+          <span aria-hidden="true">▣</span>
+          <span id="current-date-label">—</span>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="quick-add-button" class="icon-button" type="button" aria-label="Dodaj wpis ręcznie" title="Dodaj wpis ręcznie (Alt+N)">＋</button>
+          <button id="header-install-button" class="icon-button is-hidden" type="button" aria-label="Zainstaluj aplikację" title="Zainstaluj aplikację">⇩</button>
+        </div>
+      </header>
+
+      <main id="main-content" tabindex="-1">
+        <section id="view-today" class="view is-active" aria-labelledby="today-heading">
+          <h1 id="today-heading" class="sr-only">Dzisiejsze podanie</h1>
+
+          <div class="today-layout">
+            <article class="card injection-card">
+              <div class="card-heading-row">
+                <div>
+                  <p class="eyebrow">Dzisiejsze podanie</p>
+                  <h2 id="today-status-heading">Gotowe do zapisania</h2>
+                </div>
+                <span id="today-status-badge" class="status-badge status-badge--neutral">Brak wpisu</span>
+              </div>
+
+              <div class="summary-chips" aria-label="Domyślne dane podania">
+                <button id="dose-chip" class="summary-chip" type="button" title="Zmień dawkę">
+                  <span aria-hidden="true">⌁</span>
+                  <span>Dawka: <strong id="today-dose">1,0 mg</strong></span>
+                </button>
+                <button id="time-chip" class="summary-chip" type="button" title="Zmień godzinę">
+                  <span aria-hidden="true">◷</span>
+                  <span>Godzina: <strong id="today-time">20:00</strong></span>
+                </button>
+              </div>
+
+              <div class="voice-zone">
+                <button id="voice-button" class="voice-button" type="button" aria-pressed="false" aria-describedby="voice-help">
+                  <span class="voice-rings" aria-hidden="true"></span>
+                  <span class="voice-mic" aria-hidden="true">●</span>
+                  <span class="voice-button-label">Powiedz miejsce</span>
+                </button>
+                <p id="voice-help" class="muted">Np. „lewy brzuch”, „wczoraj prawe ramię” albo „zapisz”.</p>
+              </div>
+
+              <div id="voice-result" class="recognition-result is-hidden" role="status" aria-live="polite">
+                <span aria-hidden="true">✓</span>
+                <span>Rozpoznano: <strong id="voice-result-text"></strong></span>
+              </div>
+
+              <button id="place-field" class="place-field" type="button" aria-label="Wybierz miejsce wkłucia">
+                <span class="place-field-icon" aria-hidden="true">◎</span>
+                <span class="place-field-label">Miejsce</span>
+                <strong id="selected-place">Nie wybrano</strong>
+                <span class="place-field-arrow" aria-hidden="true">›</span>
+              </button>
+
+              <div class="primary-actions">
+                <button id="save-button" class="button button--primary" type="button" disabled>
+                  <span aria-hidden="true">✓</span> Zapisz
+                </button>
+                <button id="edit-button" class="button button--secondary" type="button">
+                  <span aria-hidden="true">✎</span> Wpisz ręcznie
+                </button>
+              </div>
+
+              <button id="skip-button" class="link-button" type="button">Oznacz dawkę jako pominiętą</button>
+            </article>
+
+            <aside class="today-side" aria-label="Podsumowanie">
+              <article class="card compact-card">
+                <div class="info-row">
+                  <span class="info-icon info-icon--blue" aria-hidden="true">↺</span>
+                  <div>
+                    <span>Ostatnio</span>
+                    <strong id="last-place">Brak wcześniejszych wpisów</strong>
+                  </div>
+                </div>
+                <div class="info-row">
+                  <span class="info-icon info-icon--green" aria-hidden="true">✦</span>
+                  <div>
+                    <span>Proponowane miejsce</span>
+                    <strong id="suggested-place">Lewy brzuch</strong>
+                  </div>
+                  <button id="use-suggestion-button" class="mini-button" type="button">Użyj</button>
+                </div>
+              </article>
+
+              <article class="card calendar-preview-card">
+                <div class="section-heading-row">
+                  <h2>Ten miesiąc</h2>
+                  <button class="text-button" type="button" data-view="calendar">Pełny kalendarz</button>
+                </div>
+                <div id="mini-calendar" class="mini-calendar" aria-label="Podgląd bieżącego miesiąca"></div>
+              </article>
+
+              <article class="card recent-card">
+                <div class="section-heading-row">
+                  <h2>Ostatnie podania</h2>
+                  <button class="text-button" type="button" data-view="history">Cała historia</button>
+                </div>
+                <div id="recent-list" class="recent-list"></div>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section id="view-calendar" class="view" aria-labelledby="calendar-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Przegląd miesięczny</p>
+              <h1 id="calendar-heading">Kalendarz podań</h1>
+            </div>
+            <button class="button button--primary button--small" type="button" data-open-entry>Dodaj wpis</button>
+          </div>
+
+          <div class="calendar-layout">
+            <article class="card calendar-card">
+              <div class="calendar-toolbar">
+                <button id="calendar-prev" class="icon-button" type="button" aria-label="Poprzedni miesiąc">‹</button>
+                <h2 id="calendar-month-label">—</h2>
+                <button id="calendar-next" class="icon-button" type="button" aria-label="Następny miesiąc">›</button>
+              </div>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>Pn</span><span>Wt</span><span>Śr</span><span>Cz</span><span>Pt</span><span>So</span><span>Nd</span>
+              </div>
+              <div id="calendar-grid" class="calendar-grid" role="grid" aria-labelledby="calendar-month-label"></div>
+              <div class="calendar-legend">
+                <span><i class="legend-dot legend-dot--given"></i> Podano</span>
+                <span><i class="legend-dot legend-dot--skipped"></i> Pominięto</span>
+                <span><i class="legend-dot legend-dot--today"></i> Dzisiaj</span>
+              </div>
+            </article>
+
+            <aside class="card day-details-card">
+              <div class="section-heading-row">
+                <div>
+                  <p class="eyebrow">Wybrany dzień</p>
+                  <h2 id="selected-day-label">—</h2>
+                </div>
+                <button id="add-for-selected-day" class="mini-button" type="button">Dodaj</button>
+              </div>
+              <div id="selected-day-entries" class="day-entry-list"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="view-history" class="view" aria-labelledby="history-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Wszystkie wpisy</p>
+              <h1 id="history-heading">Historia podań</h1>
+            </div>
+            <button class="button button--primary button--small" type="button" data-open-entry>Dodaj wpis</button>
+          </div>
+
+          <article class="card history-card">
+            <div class="history-filters">
+              <label class="search-field">
+                <span class="sr-only">Szukaj w historii</span>
+                <span aria-hidden="true">⌕</span>
+                <input id="history-search" type="search" placeholder="Szukaj po miejscu, dacie lub uwadze">
+              </label>
+              <label>
+                <span class="sr-only">Filtr statusu</span>
+                <select id="status-filter">
+                  <option value="all">Wszystkie statusy</option>
+                  <option value="given">Podano</option>
+                  <option value="skipped">Pominięto</option>
+                </select>
+              </label>
+              <label>
+                <span class="sr-only">Filtr miejsca</span>
+                <select id="site-filter">
+                  <option value="all">Wszystkie miejsca</option>
+                  <option value="brzuch">Brzuch</option>
+                  <option value="udo">Udo / noga</option>
+                  <option value="ramię">Ramię</option>
+                  <option value="pośladek">Pośladek</option>
+                  <option value="łopatka">Łopatka</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="history-table-wrap">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Data i godzina</th>
+                    <th>Dawka</th>
+                    <th>Miejsce</th>
+                    <th>Status</th>
+                    <th>Uwagi</th>
+                    <th><span class="sr-only">Działania</span></th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+              </table>
+              <div id="history-empty" class="empty-state is-hidden">
+                <strong>Brak pasujących wpisów</strong>
+                <span>Zmień filtry albo dodaj pierwsze podanie.</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section id="view-more" class="view" aria-labelledby="more-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Konfiguracja</p>
+              <h1 id="more-heading">Ustawienia i dane</h1>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <article class="card settings-card">
+              <h2>Domyślne podanie</h2>
+              <div class="form-grid form-grid--settings">
+                <label>
+                  <span>Dawka domyślna</span>
+                  <input id="settings-dose" inputmode="decimal" autocomplete="off">
+                </label>
+                <label>
+                  <span>Jednostka</span>
+                  <select id="settings-unit">
+                    <option value="mg">mg</option>
+                    <option value="ml">ml</option>
+                    <option value="IU">IU / j.m.</option>
+                    <option value="j.m.">j.m.</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Typowa godzina</span>
+                  <input id="settings-time" type="time">
+                </label>
+              </div>
+              <button id="save-settings-button" class="button button--primary button--small" type="button">Zapisz ustawienia</button>
+            </article>
+
+            <article class="card settings-card">
+              <h2>Obsługa głosowa</h2>
+              <label class="toggle-row">
+                <span>
+                  <strong>Odczytuj potwierdzenia</strong>
+                  <small>Aplikacja powie, co rozpoznała i zapisała.</small>
+                </span>
+                <input id="voice-feedback-toggle" type="checkbox" role="switch">
+              </label>
+              <label class="toggle-row">
+                <span>
+                  <strong>Potwierdzaj przed zapisem</strong>
+                  <small>Po rozpoznaniu polecenia trzeba nacisnąć „Zapisz” lub powiedzieć „zapisz”.</small>
+                </span>
+                <input id="voice-confirm-toggle" type="checkbox" role="switch" checked>
+              </label>
+              <div class="tip-box">
+                <strong>Przykłady poleceń</strong>
+                <span>„lewy brzuch”, „wczoraj prawe ramię”, „dawka jeden przecinek jeden”, „pomiń dzisiaj”, „zapisz”.</span>
+              </div>
+            </article>
+
+            <article class="card settings-card">
+              <h2>Kopia danych</h2>
+              <p class="muted">Wpisy są przechowywane lokalnie w tej przeglądarce. Telefon i komputer mają osobne dane, dopóki nie przeniesiesz kopii.</p>
+              <div class="button-stack">
+                <button id="export-json-button" class="button button--secondary button--small" type="button">Eksportuj kopię JSON</button>
+                <button id="export-csv-button" class="button button--secondary button--small" type="button">Eksportuj historię CSV</button>
+                <button id="import-button" class="button button--secondary button--small" type="button">Importuj kopię JSON</button>
+                <input id="import-file" class="sr-only" type="file" accept="application/json,.json">
+                <button id="clear-data-button" class="button button--danger button--small" type="button">Usuń wszystkie wpisy</button>
+              </div>
+            </article>
+
+            <article class="card settings-card">
+              <h2>Skróty klawiaturowe</h2>
+              <dl class="shortcut-list">
+                <div><dt><kbd>Alt</kbd> + <kbd>1–4</kbd></dt><dd>Zmiana zakładki</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>M</kbd></dt><dd>Uruchomienie mikrofonu</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>N</kbd></dt><dd>Nowy wpis ręczny</dd></div>
+                <div><dt><kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd>Zapisanie przygotowanego wpisu</dd></div>
+                <div><dt><kbd>Esc</kbd></dt><dd>Zamknięcie okna lub anulowanie nagrywania</dd></div>
+              </dl>
+              <p class="muted">Przyciski, formularze i kalendarz można także obsługiwać klawiszami Tab, Shift+Tab, Enter oraz Spacja.</p>
+            </article>
+
+            <article class="card settings-card settings-card--wide">
+              <h2>Informacje</h2>
+              <p>Aplikacja służy do prowadzenia prywatnego dzienniczka podań. Nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>
+              <button id="settings-install-button" class="button button--primary button--small is-hidden" type="button">Zainstaluj aplikację PWA</button>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <nav class="mobile-nav" aria-label="Nawigacja dolna">
+        <button class="mobile-nav-button is-active" type="button" data-view="today" aria-current="page">
+          <span aria-hidden="true">⌂</span><span>Dzisiaj</span>
+        </button>
+        <button class="mobile-nav-button" type="button" data-view="calendar">
+          <span aria-hidden="true">▦</span><span>Kalendarz</span>
+        </button>
+        <button class="mobile-nav-button" type="button" data-view="history">
+          <span aria-hidden="true">↺</span><span>Historia</span>
+        </button>
+        <button class="mobile-nav-button" type="button" data-view="more">
+          <span aria-hidden="true">•••</span><span>Więcej</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <dialog id="entry-dialog" class="entry-dialog" aria-labelledby="entry-dialog-title">
+    <form id="entry-form" method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Wpis podania</p>
+          <h2 id="entry-dialog-title">Dodaj wpis</h2>
+        </div>
+        <button id="dialog-close-button" class="icon-button" type="button" aria-label="Zamknij">×</button>
+      </div>
+
+      <input id="entry-id" type="hidden">
+      <div class="form-grid">
+        <label>
+          <span>Data</span>
+          <input id="entry-date" type="date" required>
+        </label>
+        <label>
+          <span>Godzina</span>
+          <input id="entry-time" type="time" required>
+        </label>
+        <label>
+          <span>Dawka</span>
+          <input id="entry-dose" inputmode="decimal" autocomplete="off" required>
+        </label>
+        <label>
+          <span>Jednostka</span>
+          <select id="entry-unit">
+            <option value="mg">mg</option>
+            <option value="ml">ml</option>
+            <option value="IU">IU / j.m.</option>
+            <option value="j.m.">j.m.</option>
+          </select>
+        </label>
+        <label>
+          <span>Strona</span>
+          <select id="entry-side" required>
+            <option value="">Wybierz</option>
+            <option value="lewa">Lewa</option>
+            <option value="prawa">Prawa</option>
+          </select>
+        </label>
+        <label>
+          <span>Miejsce</span>
+          <select id="entry-site" required>
+            <option value="">Wybierz</option>
+            <option value="brzuch">Brzuch</option>
+            <option value="udo">Udo / noga</option>
+            <option value="ramię">Ramię</option>
+            <option value="pośladek">Pośladek</option>
+            <option value="łopatka">Łopatka</option>
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="entry-status">
+            <option value="given">Podano</option>
+            <option value="skipped">Pominięto</option>
+          </select>
+        </label>
+        <label class="form-field--wide">
+          <span>Uwagi</span>
+          <textarea id="entry-note" rows="3" placeholder="Opcjonalnie, np. lekkie zaczerwienienie"></textarea>
+        </label>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="delete-entry-button" class="button button--danger button--small is-hidden" type="button">Usuń</button>
+        <span class="dialog-spacer"></span>
+        <button id="dialog-cancel-button" class="button button--secondary button--small" type="button">Anuluj</button>
+        <button class="button button--primary button--small" type="submit">Zapisz wpis</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="live-region" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
