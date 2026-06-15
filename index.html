@@ -303,6 +303,34 @@
             </article>
 
             <article class="card settings-card">
+              <h2>Przypomnienie o zastrzyku</h2>
+              <label class="toggle-row">
+                <span>
+                  <strong>Włącz przypomnienie</strong>
+                  <small>Powiadomienie pokaże proponowane miejsce wkłucia na dany dzień.</small>
+                </span>
+                <input id="reminder-enabled-toggle" type="checkbox" role="switch">
+              </label>
+              <label class="settings-field-row">
+                <span>
+                  <strong>Godzina przypomnienia</strong>
+                  <small>Na przykład 21:00.</small>
+                </span>
+                <input id="reminder-time" type="time" value="21:00">
+              </label>
+              <div class="permission-summary" aria-live="polite">
+                <span>Powiadomienia:</span>
+                <strong id="notification-permission-status">sprawdzanie…</strong>
+              </div>
+              <div class="button-row-wrap">
+                <button id="request-notification-button" class="button button--secondary button--small" type="button">Zezwól na powiadomienia</button>
+                <button id="test-notification-button" class="button button--secondary button--small" type="button">Wyślij test</button>
+              </div>
+              <p class="muted reminder-note">Na statycznym hostingu GitHub Pages dokładne powiadomienie po całkowitym zamknięciu przeglądarki zależy od systemu i przeglądarki. Aplikacja wykorzystuje powiadomienia systemowe oraz dostępny mechanizm pracy w tle.</p>
+              <button id="save-reminder-button" class="button button--primary button--small" type="button">Zapisz przypomnienie</button>
+            </article>
+
+            <article class="card settings-card">
               <h2>Obsługa głosowa</h2>
               <label class="toggle-row">
                 <span>
@@ -328,6 +356,8 @@
               <h2>Kopia danych</h2>
               <p class="muted">Wpisy są przechowywane lokalnie w tej przeglądarce. Telefon i komputer mają osobne dane, dopóki nie przeniesiesz kopii.</p>
               <div class="button-stack">
+                <button id="export-pdf-button" class="button button--secondary button--small" type="button">Eksportuj raport PDF</button>
+                <button id="export-word-button" class="button button--secondary button--small" type="button">Eksportuj do Word (.doc)</button>
                 <button id="export-json-button" class="button button--secondary button--small" type="button">Eksportuj kopię JSON</button>
                 <button id="export-csv-button" class="button button--secondary button--small" type="button">Eksportuj historię CSV</button>
                 <button id="import-button" class="button button--secondary button--small" type="button">Importuj kopię JSON</button>
@@ -342,10 +372,22 @@
                 <div><dt><kbd>Alt</kbd> + <kbd>1–4</kbd></dt><dd>Zmiana zakładki</dd></div>
                 <div><dt><kbd>Alt</kbd> + <kbd>M</kbd></dt><dd>Uruchomienie mikrofonu</dd></div>
                 <div><dt><kbd>Alt</kbd> + <kbd>N</kbd></dt><dd>Nowy wpis ręczny</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>P</kbd></dt><dd>Eksport raportu PDF</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Eksport raportu Word</dd></div>
                 <div><dt><kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd>Zapisanie przygotowanego wpisu</dd></div>
                 <div><dt><kbd>Esc</kbd></dt><dd>Zamknięcie okna lub anulowanie nagrywania</dd></div>
               </dl>
               <p class="muted">Przyciski, formularze i kalendarz można także obsługiwać klawiszami Tab, Shift+Tab, Enter oraz Spacja.</p>
+            </article>
+
+            <article class="card settings-card">
+              <h2>Zgody aplikacji</h2>
+              <div class="permission-list">
+                <div><span>Mikrofon</span><strong id="microphone-permission-settings">sprawdzanie…</strong></div>
+                <div><span>Powiadomienia</span><strong id="notification-permission-settings">sprawdzanie…</strong></div>
+                <div><span>Trwałe przechowywanie</span><strong id="storage-permission-settings">sprawdzanie…</strong></div>
+              </div>
+              <button id="open-permissions-button" class="button button--secondary button--small" type="button">Otwórz ustawienia zgód</button>
             </article>
 
             <article class="card settings-card settings-card--wide">
@@ -373,6 +415,46 @@
       </nav>
     </div>
   </div>
+
+  <dialog id="permissions-dialog" class="permissions-dialog" aria-labelledby="permissions-title">
+    <div class="permissions-content">
+      <div class="permissions-hero" aria-hidden="true">✓</div>
+      <p class="eyebrow">Pierwsze uruchomienie</p>
+      <h2 id="permissions-title">Zezwól na potrzebne funkcje</h2>
+      <p class="muted">Każdą zgodę zatwierdzasz osobno. Bez zgody na mikrofon i powiadomienia aplikacja nadal działa ręcznie.</p>
+
+      <div class="permission-cards">
+        <section class="permission-card">
+          <div>
+            <strong>Mikrofon</strong>
+            <span>Potrzebny do poleceń typu „lewy brzuch”.</span>
+          </div>
+          <button id="permission-microphone-button" class="button button--secondary button--small" type="button">Zezwól</button>
+          <span id="permission-microphone-status" class="permission-status">Nie sprawdzono</span>
+        </section>
+        <section class="permission-card">
+          <div>
+            <strong>Powiadomienia</strong>
+            <span>Przypomnienie o zastrzyku i proponowanym miejscu.</span>
+          </div>
+          <button id="permission-notification-button" class="button button--secondary button--small" type="button">Zezwól</button>
+          <span id="permission-notification-status" class="permission-status">Nie sprawdzono</span>
+        </section>
+        <section class="permission-card">
+          <div>
+            <strong>Trwałe przechowywanie</strong>
+            <span>Zmniejsza ryzyko usunięcia historii przez przeglądarkę.</span>
+          </div>
+          <button id="permission-storage-button" class="button button--secondary button--small" type="button">Włącz</button>
+          <span id="permission-storage-status" class="permission-status">Nie sprawdzono</span>
+        </section>
+      </div>
+
+      <div class="dialog-actions permissions-actions">
+        <button id="permissions-finish-button" class="button button--primary" type="button">Przejdź do aplikacji</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="entry-dialog" class="entry-dialog" aria-labelledby="entry-dialog-title">
     <form id="entry-form" method="dialog">

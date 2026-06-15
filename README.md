@@ -1,8 +1,8 @@
 # Dzienniczek hormonu wzrostu PWA
 
-Wersja: **1.0 - 1506262045**
+Wersja: **1.1 - 1506262134**
 
-Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Program działa jako statyczna strona, dlatego można go publikować przez GitHub Pages.
+Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Program działa jako statyczna strona i może być publikowany przez GitHub Pages.
 
 ## Najważniejsze funkcje
 
@@ -13,10 +13,39 @@ Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i k
 - kalendarz z oznaczeniem podań i pominiętych dawek,
 - historia z filtrowaniem, edycją i usuwaniem wpisów,
 - automatyczna propozycja kolejnego miejsca wkłucia,
-- eksport kopii JSON oraz historii CSV,
+- przypomnienie systemowe o ustawionej godzinie z proponowanym miejscem wkłucia,
+- ekran zgód przy pierwszym uruchomieniu: mikrofon, powiadomienia i trwałe przechowywanie danych,
+- eksport raportu do PDF przez systemowe okno drukowania,
+- eksport raportu do pliku Word `.doc`,
+- eksport kopii JSON i historii CSV,
 - import kopii JSON,
 - działanie offline po pierwszym poprawnym otwarciu,
 - jasny interfejs dopasowany do telefonu, tabletu i komputera.
+
+## Przypomnienia
+
+W ustawieniach można:
+
+- włączyć lub wyłączyć przypomnienie,
+- ustawić godzinę, np. `21:00`,
+- wysłać testowe powiadomienie,
+- sprawdzić stan zgody na powiadomienia.
+
+Treść przypomnienia zawiera automatycznie proponowane miejsce, np.:
+
+```text
+Czas na zastrzyk
+Dzisiaj: lewe udo. Dawka: 1,1 mg.
+```
+
+Aplikacja korzysta z systemowych powiadomień, service workera i — gdy przeglądarka pozwoli — okresowej pracy w tle. GitHub Pages jest hostingiem statycznym, dlatego po całkowitym zamknięciu przeglądarki system może opóźnić lub pominąć lokalne przypomnienie. W pełni gwarantowane powiadomienia o dokładnej godzinie wymagają wersji natywnej APK albo serwera wysyłającego Web Push.
+
+## Eksport raportów
+
+- **PDF** — aplikacja otwiera przygotowany raport i systemowe okno drukowania; wybierz „Zapisz jako PDF”.
+- **Word** — pobierany jest plik `.doc`, który można otworzyć w Microsoft Word i zgodnych edytorach.
+- **CSV** — tabela historii do Excela lub innego arkusza.
+- **JSON** — pełna kopia danych i ustawień do ponownego importu.
 
 ## Skróty klawiaturowe
 
@@ -28,6 +57,8 @@ Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i k
 | `Alt + 4` | Więcej |
 | `Alt + M` | Mikrofon |
 | `Alt + N` | Nowy wpis ręczny |
+| `Alt + P` | Eksport raportu PDF |
+| `Alt + W` | Eksport raportu Word |
 | `Ctrl + Enter` | Zapis przygotowanego wpisu |
 | `Esc` | Zamknięcie okna lub zatrzymanie mikrofonu |
 
@@ -37,7 +68,7 @@ Wszystkie elementy można również obsługiwać klawiszami `Tab`, `Shift + Tab`
 
 Dane są przechowywane lokalnie w pamięci przeglądarki. Repozytorium GitHub nie zawiera wpisów medycznych użytkownika.
 
-Telefon i komputer przechowują osobne dane. Do przeniesienia historii między urządzeniami służy eksport i import pliku JSON. Automatyczna synchronizacja wymagałaby późniejszego dodania osobnej bazy danych i logowania.
+Telefon i komputer przechowują osobne dane. Do przeniesienia historii między urządzeniami służy eksport i import pliku JSON. Automatyczna synchronizacja wymagałaby osobnej bazy danych i logowania.
 
 ## Uruchomienie lokalne
 
@@ -53,7 +84,7 @@ Następnie otwórz:
 http://localhost:8080
 ```
 
-## Wysłanie projektu na GitHub
+## Wysłanie projektu na GitHub — Windows
 
 Repozytorium docelowe:
 
@@ -61,60 +92,58 @@ Repozytorium docelowe:
 https://github.com/tomalawsb/Dzienniczek-hormonu-wzrostu
 ```
 
-1. Rozpakuj projekt.
-2. Otwórz jego główny folder.
-3. Kliknij prawym przyciskiem `upload_to_github.ps1` i wybierz uruchomienie w PowerShell albo uruchom:
+Uruchom w głównym folderze projektu:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\upload_to_github.ps1
 ```
 
-Skrypt:
+Skrypt sam pobiera repozytorium, kopiuje projekt, tworzy commit z numerem wersji i wysyła gałąź `main`.
 
-- pobiera aktualne repozytorium,
-- kopiuje cały projekt,
-- odczytuje wersję z `app-version.json`,
-- sam tworzy opis commita,
-- wysyła gałąź `main` bez pytania o opis.
+## Wysłanie projektu na GitHub — Android
 
-Przy pierwszym użyciu Git może poprosić o zalogowanie przez Git Credential Manager.
+Android wymaga aplikacji Termux. Instrukcja znajduje się w pliku:
+
+```text
+URUCHOMIENIE_NA_ANDROIDZIE.txt
+```
+
+Po jednorazowym przyznaniu Termuxowi dostępu do pamięci uruchom w folderze projektu:
+
+```bash
+bash upload_to_github_android.sh
+```
+
+Skrypt sam instaluje Git, GitHub CLI i rsync, prowadzi przez pierwsze logowanie do GitHuba, kopiuje cały projekt i wysyła zmiany.
 
 ## Publikacja przez GitHub Pages
 
-Projekt zawiera workflow `.github/workflows/deploy-pages.yml`. Po wysłaniu plików:
+Projekt zawiera workflow `.github/workflows/deploy-pages.yml`.
 
-1. wejdź w ustawienia repozytorium,
-2. otwórz sekcję **Pages**,
-3. jako źródło wybierz **GitHub Actions**,
-4. poczekaj na zakończenie zadania w zakładce **Actions**.
+1. Wejdź w ustawienia repozytorium.
+2. Otwórz sekcję **Pages**.
+3. Jako źródło wybierz **GitHub Actions**.
+4. Poczekaj na zakończenie zadania w zakładce **Actions**.
 
-Docelowy adres powinien mieć postać:
+Docelowy adres:
 
 ```text
 https://tomalawsb.github.io/Dzienniczek-hormonu-wzrostu/
 ```
 
-## Obsługa głosowa
-
-Aplikacja wykorzystuje mechanizm rozpoznawania mowy udostępniony przez przeglądarkę. Mikrofon wymaga zgody użytkownika oraz uruchomienia strony przez HTTPS lub `localhost`. Gdy przeglądarka nie obsługuje tej funkcji, wszystkie wpisy nadal można dodawać ręcznie i klawiaturą.
-
 ## Pliki projektu
 
-- `index.html` – układ aplikacji,
-- `style.css` – responsywny interfejs,
-- `app.js` – logika danych, głosu, kalendarza i klawiatury,
-- `manifest.json` – konfiguracja PWA,
-- `service-worker.js` – działanie offline,
-- `app-version.json` – numer wersji,
-- `upload_to_github.ps1` – automatyczne wysyłanie na GitHub,
-- `.github/workflows/deploy-pages.yml` – publikacja przez GitHub Pages.
+- `index.html` — układ aplikacji,
+- `style.css` — responsywny interfejs,
+- `app.js` — dane, głos, kalendarz, raporty, zgody i przypomnienia,
+- `manifest.json` — konfiguracja PWA,
+- `service-worker.js` — działanie offline, powiadomienia i obsługa pracy w tle,
+- `app-version.json` — numer wersji,
+- `upload_to_github.ps1` — wysyłanie na GitHub w Windows,
+- `upload_to_github_android.sh` — wysyłanie na GitHub z Androida przez Termux,
+- `URUCHOMIENIE_NA_ANDROIDZIE.txt` — instrukcja dla Androida,
+- `.github/workflows/deploy-pages.yml` — publikacja przez GitHub Pages.
 
 ## Ważne
 
 Aplikacja nie dobiera dawki i nie zastępuje zaleceń lekarza. Zapisuje wyłącznie informacje wpisane lub wypowiedziane przez użytkownika.
-
-## Podgląd interfejsu
-
-![Widok na komputerze](preview-desktop.png)
-
-![Widok na telefonie](preview-mobile.png)

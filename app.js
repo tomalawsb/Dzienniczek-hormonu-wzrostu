@@ -35,13 +35,19 @@
   ];
 
   const defaultData = {
-    version: 1,
+    version: 2,
     settings: {
       defaultDose: '1,0',
       unit: 'mg',
       defaultTime: '20:00',
       voiceFeedback: false,
-      voiceConfirm: true
+      voiceConfirm: true,
+      reminderEnabled: true,
+      reminderTime: '21:00'
+    },
+    meta: {
+      onboardingCompleted: false,
+      lastReminderDate: ''
     },
     entries: []
   };
@@ -55,20 +61,26 @@
   let isListening = false;
   let lastRecognizedText = '';
   let quickDraft = createDefaultDraft();
+  let reminderTimer = null;
+  let serviceWorkerRegistration = null;
 
   const el = {};
 
   document.addEventListener('DOMContentLoaded', init);
 
-  function init() {
+  async function init() {
     cacheElements();
     bindEvents();
     configureSpeechRecognition();
     updateCurrentDateHeader();
     loadVersion();
     renderAll();
-    registerServiceWorker();
+    await registerServiceWorker();
     updateOnlineInstallState();
+    await updatePermissionStatuses();
+    scheduleDailyReminder();
+    checkReminderDue();
+    maybeShowFirstRunPermissions();
   }
 
   function cacheElements() {
@@ -83,9 +95,15 @@
       'calendar-month-label', 'calendar-grid', 'selected-day-label', 'selected-day-entries',
       'add-for-selected-day', 'history-search', 'status-filter', 'site-filter', 'history-table-body',
       'history-empty', 'settings-dose', 'settings-unit', 'settings-time', 'voice-feedback-toggle',
-      'voice-confirm-toggle', 'save-settings-button', 'export-json-button', 'export-csv-button',
-      'import-button', 'import-file', 'clear-data-button', 'header-install-button', 'desktop-install-button',
-      'settings-install-button', 'version-label'
+      'voice-confirm-toggle', 'save-settings-button', 'reminder-enabled-toggle', 'reminder-time',
+      'save-reminder-button', 'notification-permission-status', 'request-notification-button',
+      'test-notification-button', 'export-pdf-button', 'export-word-button', 'export-json-button',
+      'export-csv-button', 'import-button', 'import-file', 'clear-data-button', 'header-install-button',
+      'desktop-install-button', 'settings-install-button', 'version-label', 'permissions-dialog',
+      'permission-microphone-button', 'permission-notification-button', 'permission-storage-button',
+      'permission-microphone-status', 'permission-notification-status', 'permission-storage-status',
+      'permissions-finish-button', 'microphone-permission-settings', 'notification-permission-settings',
+      'storage-permission-settings', 'open-permissions-button'
     ];
     ids.forEach((id) => { el[id] = document.getElementById(id); });
   }
@@ -131,11 +149,25 @@
     el['selected-day-entries'].addEventListener('click', handleDayDetailsAction);
 
     el['save-settings-button'].addEventListener('click', saveSettings);
+    el['save-reminder-button'].addEventListener('click', saveReminderSettings);
+    el['request-notification-button'].addEventListener('click', requestNotificationPermission);
+    el['test-notification-button'].addEventListener('click', testReminderNotification);
+    el['export-pdf-button'].addEventListener('click', exportPdf);
+    el['export-word-button'].addEventListener('click', exportWord);
     el['export-json-button'].addEventListener('click', exportJson);
     el['export-csv-button'].addEventListener('click', exportCsv);
     el['import-button'].addEventListener('click', () => el['import-file'].click());
     el['import-file'].addEventListener('change', importJson);
     el['clear-data-button'].addEventListener('click', clearAllEntries);
+
+    el['permission-microphone-button'].addEventListener('click', requestMicrophonePermission);
+    el['permission-notification-button'].addEventListener('click', requestNotificationPermission);
+    el['permission-storage-button'].addEventListener('click', requestPersistentStorage);
+    el['permissions-finish-button'].addEventListener('click', finishPermissionsOnboarding);
+    el['open-permissions-button'].addEventListener('click', openPermissionsDialog);
+    el['permissions-dialog'].addEventListener('cancel', (event) => {
+      if (!data.meta.onboardingCompleted) event.preventDefault();
+    });
 
     [el['header-install-button'], el['desktop-install-button'], el['settings-install-button']].forEach((button) => {
       button.addEventListener('click', installPwa);
@@ -153,6 +185,10 @@
     });
 
     document.addEventListener('keydown', handleGlobalKeyboard);
+    window.addEventListener('focus', checkReminderDue);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkReminderDue();
+    });
     window.addEventListener('storage', (event) => {
       if (event.key === STORAGE_KEY) {
         data = loadData();
@@ -169,8 +205,9 @@
       if (!raw) return structuredCloneSafe(defaultData);
       const parsed = JSON.parse(raw);
       return {
-        version: 1,
+        version: 2,
         settings: { ...defaultData.settings, ...(parsed.settings || {}) },
+        meta: { ...defaultData.meta, ...(parsed.meta || {}) },
         entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isValidEntry) : []
       };
     } catch (error) {
@@ -181,6 +218,10 @@
 
   function persistData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    window.queueMicrotask(() => {
+      scheduleDailyReminder();
+      syncReminderStateWithServiceWorker();
+    });
   }
 
   function structuredCloneSafe(value) {
@@ -407,6 +448,9 @@
     el['settings-time'].value = data.settings.defaultTime;
     el['voice-feedback-toggle'].checked = Boolean(data.settings.voiceFeedback);
     el['voice-confirm-toggle'].checked = Boolean(data.settings.voiceConfirm);
+    el['reminder-enabled-toggle'].checked = Boolean(data.settings.reminderEnabled);
+    el['reminder-time'].value = data.settings.reminderTime || '21:00';
+    updatePermissionStatuses();
   }
 
   function switchView(view) {
@@ -635,6 +679,98 @@
     showToast('Ustawienia zostały zapisane.', 'success');
   }
 
+  async function saveReminderSettings() {
+    const time = el['reminder-time'].value || '21:00';
+    const enabled = el['reminder-enabled-toggle'].checked;
+    if (enabled && (!('Notification' in window) || Notification.permission !== 'granted')) {
+      const permission = await requestNotificationPermission();
+      if (permission !== 'granted') {
+        el['reminder-enabled-toggle'].checked = false;
+        showToast('Nie można włączyć przypomnienia bez zgody na powiadomienia.', 'error');
+        return;
+      }
+    }
+    data.settings.reminderEnabled = enabled;
+    data.settings.reminderTime = time;
+    persistData();
+    await registerPeriodicReminder();
+    checkReminderDue();
+    renderSettings();
+    showToast(enabled ? `Przypomnienie ustawiono na ${time}.` : 'Przypomnienie zostało wyłączone.', 'success');
+  }
+
+  function buildReportTableRows() {
+    return getEntriesSorted().map((entry) => `
+      <tr>
+        <td>${escapeHtml(formatDateShort(entry.date))}</td>
+        <td>${escapeHtml(entry.time || '—')}</td>
+        <td>${entry.status === 'given' ? `${escapeHtml(formatDose(entry.dose))} ${escapeHtml(entry.unit)}` : '—'}</td>
+        <td>${entry.status === 'given' ? escapeHtml(formatPlace(entry.side, entry.site)) : '—'}</td>
+        <td>${entry.status === 'given' ? 'Podano' : 'Pominięto'}</td>
+        <td>${entry.note ? escapeHtml(entry.note) : '—'}</td>
+      </tr>`).join('');
+  }
+
+  function buildReportBody() {
+    const entries = getEntriesSorted();
+    const given = entries.filter((entry) => entry.status === 'given').length;
+    const skipped = entries.filter((entry) => entry.status === 'skipped').length;
+    return `
+      <h1>Dzienniczek hormonu wzrostu</h1>
+      <p class="generated">Raport wygenerowano: ${escapeHtml(new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date()))}</p>
+      <div class="summary">
+        <div><strong>${entries.length}</strong><span>wszystkich wpisów</span></div>
+        <div><strong>${given}</strong><span>podań</span></div>
+        <div><strong>${skipped}</strong><span>pominiętych</span></div>
+      </div>
+      <table>
+        <thead><tr><th>Data</th><th>Godzina</th><th>Dawka</th><th>Miejsce</th><th>Status</th><th>Uwagi</th></tr></thead>
+        <tbody>${buildReportTableRows() || '<tr><td colspan="6">Brak wpisów.</td></tr>'}</tbody>
+      </table>
+      <p class="footer">Aplikacja nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>`;
+  }
+
+  function reportDocumentHtml({ forWord = false } = {}) {
+    return `<!doctype html><html lang="pl"${forWord ? ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"' : ''}>
+      <head><meta charset="utf-8"><title>Raport – Dzienniczek hormonu wzrostu</title>
+      <style>
+        @page { size: A4 landscape; margin: 14mm; }
+        body { font-family: Arial, sans-serif; color: #17324d; margin: 24px; }
+        h1 { margin: 0 0 4px; font-size: 24px; }
+        .generated, .footer { color: #60768a; font-size: 12px; }
+        .summary { display: flex; gap: 12px; margin: 18px 0; }
+        .summary div { border: 1px solid #d9e5ed; border-radius: 10px; padding: 10px 14px; min-width: 130px; }
+        .summary strong { display: block; font-size: 20px; color: #0e927f; }
+        .summary span { font-size: 12px; color: #60768a; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 11px; }
+        th, td { border: 1px solid #cfdce5; padding: 7px; text-align: left; vertical-align: top; }
+        th { background: #e9f7f4; }
+        tr:nth-child(even) td { background: #f8fbfd; }
+        .print-button { margin-bottom: 16px; padding: 10px 14px; border: 0; border-radius: 9px; color: white; background: #0e927f; font-weight: bold; }
+        @media print { .print-button { display: none; } body { margin: 0; } }
+      </style></head><body>${forWord ? '' : '<button class="print-button" onclick="window.print()">Zapisz jako PDF / drukuj</button>'}${buildReportBody()}</body></html>`;
+  }
+
+  function exportPdf() {
+    const reportWindow = window.open('', '_blank');
+    if (!reportWindow) {
+      showToast('Przeglądarka zablokowała okno raportu. Zezwól na wyskakujące okna.', 'error');
+      return;
+    }
+    reportWindow.document.open();
+    reportWindow.document.write(reportDocumentHtml());
+    reportWindow.document.close();
+    reportWindow.focus();
+    window.setTimeout(() => reportWindow.print(), 450);
+    showToast('Otworzono raport. Wybierz „Zapisz jako PDF”.', 'success');
+  }
+
+  function exportWord() {
+    const html = '﻿' + reportDocumentHtml({ forWord: true });
+    downloadFile(`dzienniczek-raport-${localDateISO()}.doc`, html, 'application/msword;charset=utf-8');
+    showToast('Pobrano raport Word.', 'success');
+  }
+
   function exportJson() {
     const payload = {
       application: 'Dzienniczek hormonu wzrostu',
@@ -668,8 +804,9 @@
       const validEntries = imported.entries.filter(isValidEntry);
       if (!window.confirm(`Import zawiera ${validEntries.length} ${plural(validEntries.length, 'wpis', 'wpisy', 'wpisów')}. Zastąpić obecne dane?`)) return;
       data = {
-        version: 1,
+        version: 2,
         settings: { ...defaultData.settings, ...(imported.settings || {}) },
+        meta: { ...defaultData.meta, ...(imported.meta || {}), onboardingCompleted: true },
         entries: validEntries
       };
       persistData();
@@ -694,6 +831,219 @@
     lastRecognizedText = '';
     renderAll();
     showToast('Wszystkie wpisy zostały usunięte.', 'success');
+  }
+
+  function maybeShowFirstRunPermissions() {
+    if (data.meta.onboardingCompleted || !el['permissions-dialog']) return;
+    window.setTimeout(() => openPermissionsDialog(), 250);
+  }
+
+  async function openPermissionsDialog() {
+    await updatePermissionStatuses();
+    if (!el['permissions-dialog'].open) el['permissions-dialog'].showModal();
+  }
+
+  function finishPermissionsOnboarding() {
+    data.meta.onboardingCompleted = true;
+    persistData();
+    if (el['permissions-dialog'].open) el['permissions-dialog'].close();
+    scheduleDailyReminder();
+    showToast('Ustawienia zgód zostały zapisane.', 'success');
+  }
+
+  async function requestMicrophonePermission() {
+    let state = 'unsupported';
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('unsupported');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      state = 'granted';
+      showToast('Dostęp do mikrofonu został przyznany.', 'success');
+    } catch (error) {
+      state = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError' ? 'denied' : 'unsupported';
+      showToast(state === 'denied' ? 'Dostęp do mikrofonu został zablokowany.' : 'Mikrofon nie jest dostępny w tej przeglądarce.', 'error');
+    }
+    await updatePermissionStatuses({ microphone: state });
+    return state;
+  }
+
+  async function requestNotificationPermission() {
+    let state = 'unsupported';
+    try {
+      if (!('Notification' in window)) throw new Error('unsupported');
+      state = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (state === 'granted') {
+        showToast('Powiadomienia zostały włączone.', 'success');
+        await registerPeriodicReminder();
+        scheduleDailyReminder();
+        checkReminderDue();
+      } else {
+        showToast('Powiadomienia nie zostały włączone.', 'error');
+      }
+    } catch (error) {
+      console.warn(error);
+      state = 'unsupported';
+      showToast('Ta przeglądarka nie obsługuje powiadomień.', 'error');
+    }
+    await updatePermissionStatuses({ notification: state });
+    return state;
+  }
+
+  async function requestPersistentStorage() {
+    let state = 'unsupported';
+    try {
+      if (!navigator.storage?.persist) throw new Error('unsupported');
+      state = await navigator.storage.persist() ? 'granted' : 'denied';
+      showToast(state === 'granted' ? 'Włączono trwałe przechowywanie danych.' : 'Przeglądarka nie przyznała trwałego przechowywania.', state === 'granted' ? 'success' : 'error');
+    } catch (error) {
+      state = 'unsupported';
+      showToast('Trwałe przechowywanie nie jest obsługiwane.', 'error');
+    }
+    await updatePermissionStatuses({ storage: state });
+    return state;
+  }
+
+  async function readMicrophonePermission() {
+    try {
+      if (!navigator.permissions?.query) return navigator.mediaDevices?.getUserMedia ? 'prompt' : 'unsupported';
+      const result = await navigator.permissions.query({ name: 'microphone' });
+      return result.state;
+    } catch {
+      return navigator.mediaDevices?.getUserMedia ? 'prompt' : 'unsupported';
+    }
+  }
+
+  async function readStoragePermission() {
+    try {
+      if (!navigator.storage?.persisted) return 'unsupported';
+      return await navigator.storage.persisted() ? 'granted' : 'prompt';
+    } catch {
+      return 'unsupported';
+    }
+  }
+
+  function permissionText(state) {
+    return ({ granted: 'Zezwolono', denied: 'Zablokowano', prompt: 'Wymaga zgody', default: 'Wymaga zgody', unsupported: 'Brak obsługi' })[state] || 'Nie sprawdzono';
+  }
+
+  function setPermissionLabel(node, state) {
+    if (!node) return;
+    node.textContent = permissionText(state);
+    node.dataset.state = state;
+  }
+
+  async function updatePermissionStatuses(overrides = {}) {
+    const microphone = overrides.microphone || await readMicrophonePermission();
+    const notification = overrides.notification || (('Notification' in window) ? Notification.permission : 'unsupported');
+    const storage = overrides.storage || await readStoragePermission();
+    [el['permission-microphone-status'], el['microphone-permission-settings']].forEach((node) => setPermissionLabel(node, microphone));
+    [el['permission-notification-status'], el['notification-permission-settings'], el['notification-permission-status']].forEach((node) => setPermissionLabel(node, notification));
+    [el['permission-storage-status'], el['storage-permission-settings']].forEach((node) => setPermissionLabel(node, storage));
+    if (el['request-notification-button']) el['request-notification-button'].disabled = notification === 'granted' || notification === 'unsupported' || notification === 'denied';
+    if (el['test-notification-button']) el['test-notification-button'].disabled = notification !== 'granted';
+    if (el['permission-microphone-button']) el['permission-microphone-button'].disabled = microphone === 'granted' || microphone === 'unsupported' || microphone === 'denied';
+    if (el['permission-notification-button']) el['permission-notification-button'].disabled = notification === 'granted' || notification === 'unsupported' || notification === 'denied';
+    if (el['permission-storage-button']) el['permission-storage-button'].disabled = storage === 'granted' || storage === 'unsupported';
+  }
+
+  function todayHasEntry() {
+    const today = localDateISO();
+    return data.entries.some((entry) => entry.date === today);
+  }
+
+  function reminderBody() {
+    const suggestion = getSuggestedPlace();
+    return `Dzisiaj: ${formatPlace(suggestion.side, suggestion.site)}. Dawka: ${formatDose(data.settings.defaultDose)} ${data.settings.unit}.`;
+  }
+
+  async function showReminderNotification({ test = false } = {}) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+    let registration = serviceWorkerRegistration;
+    if (!registration && 'serviceWorker' in navigator) {
+      try { registration = await navigator.serviceWorker.ready; } catch { registration = null; }
+    }
+    const title = test ? 'Test przypomnienia' : 'Czas na zastrzyk';
+    const options = {
+      body: reminderBody(),
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: test ? 'gh-reminder-test' : `gh-reminder-${localDateISO()}`,
+      renotify: false,
+      requireInteraction: false,
+      data: { url: './#today' }
+    };
+    if (registration?.showNotification) await registration.showNotification(title, options);
+    else new Notification(title, options);
+    if (!test) {
+      data.meta.lastReminderDate = localDateISO();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      syncReminderStateWithServiceWorker();
+    }
+    return true;
+  }
+
+  async function testReminderNotification() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      const permission = await requestNotificationPermission();
+      if (permission !== 'granted') return;
+    }
+    await showReminderNotification({ test: true });
+    showToast('Wysłano testowe powiadomienie.', 'success');
+  }
+
+  function checkReminderDue() {
+    if (!data.settings.reminderEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const today = localDateISO();
+    if (todayHasEntry() || data.meta.lastReminderDate === today) return;
+    if (localTime() >= (data.settings.reminderTime || '21:00')) showReminderNotification();
+  }
+
+  function scheduleDailyReminder() {
+    if (reminderTimer) window.clearTimeout(reminderTimer);
+    reminderTimer = null;
+    if (!data.settings.reminderEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const [hour, minute] = (data.settings.reminderTime || '21:00').split(':').map(Number);
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(hour, minute, 0, 0);
+    if (target <= now || todayHasEntry() || data.meta.lastReminderDate === localDateISO()) target.setDate(target.getDate() + 1);
+    const delay = Math.max(1000, target.getTime() - now.getTime());
+    reminderTimer = window.setTimeout(async () => {
+      checkReminderDue();
+      scheduleDailyReminder();
+    }, Math.min(delay, 2147483647));
+  }
+
+  async function syncReminderStateWithServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const registration = serviceWorkerRegistration || await navigator.serviceWorker.ready;
+      const suggestion = getSuggestedPlace();
+      registration.active?.postMessage({
+        type: 'REMINDER_STATE',
+        payload: {
+          enabled: Boolean(data.settings.reminderEnabled),
+          time: data.settings.reminderTime || '21:00',
+          lastReminderDate: data.meta.lastReminderDate || '',
+          today: localDateISO(),
+          todayHasEntry: todayHasEntry(),
+          body: reminderBody(),
+          url: './#today',
+          suggestion: formatPlace(suggestion.side, suggestion.site)
+        }
+      });
+    } catch (error) {
+      console.warn('Nie udało się przekazać ustawień przypomnienia:', error);
+    }
+  }
+
+  async function registerPeriodicReminder() {
+    if (!('Notification' in window) || !serviceWorkerRegistration?.periodicSync || !data.settings.reminderEnabled || Notification.permission !== 'granted') return;
+    try {
+      await serviceWorkerRegistration.periodicSync.register('daily-injection-reminder', { minInterval: 6 * 60 * 60 * 1000 });
+    } catch (error) {
+      console.info('Okresowa praca w tle nie została przyznana:', error);
+    }
   }
 
   function configureSpeechRecognition() {
@@ -923,6 +1273,7 @@
 
     if (event.key === 'Escape') {
       if (el['entry-dialog'].open) closeEntryDialog();
+      else if (el['permissions-dialog'].open && data.meta.onboardingCompleted) el['permissions-dialog'].close();
       else stopVoiceRecognition();
       return;
     }
@@ -943,6 +1294,16 @@
       if (key === 'n') {
         event.preventDefault();
         openEntryDialog();
+        return;
+      }
+      if (key === 'p') {
+        event.preventDefault();
+        exportPdf();
+        return;
+      }
+      if (key === 'w') {
+        event.preventDefault();
+        exportWord();
         return;
       }
     }
@@ -987,17 +1348,40 @@
       const version = await response.json();
       el['version-label'].textContent = `Wersja ${version.version}`;
     } catch (error) {
-      el['version-label'].textContent = 'Wersja 1.0';
+      el['version-label'].textContent = 'Wersja 1.1';
     }
   }
 
-  function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) return;
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js').catch((error) => {
-        console.warn('Nie udało się zarejestrować service workera:', error);
-      });
+  async function readReminderStateFromServiceWorker() {
+    if (!serviceWorkerRegistration?.active || !('MessageChannel' in window)) return null;
+    return new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timeout = window.setTimeout(() => resolve(null), 1200);
+      channel.port1.onmessage = (event) => {
+        window.clearTimeout(timeout);
+        resolve(event.data || null);
+      };
+      serviceWorkerRegistration.active.postMessage({ type: 'GET_REMINDER_STATE' }, [channel.port2]);
     });
+  }
+
+  async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      serviceWorkerRegistration = await navigator.serviceWorker.register('./service-worker.js');
+      serviceWorkerRegistration = await navigator.serviceWorker.ready;
+      const workerState = await readReminderStateFromServiceWorker();
+      if (workerState?.lastReminderDate && workerState.lastReminderDate > (data.meta.lastReminderDate || '')) {
+        data.meta.lastReminderDate = workerState.lastReminderDate;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+      await syncReminderStateWithServiceWorker();
+      await registerPeriodicReminder();
+      return serviceWorkerRegistration;
+    } catch (error) {
+      console.warn('Nie udało się zarejestrować service workera:', error);
+      return null;
+    }
   }
 
   function getEntriesSorted() {

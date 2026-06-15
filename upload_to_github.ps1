@@ -8,7 +8,7 @@ $RepoUrl = "https://github.com/tomalawsb/Dzienniczek-hormonu-wzrostu.git"
 $GitUserName = "Tomasz Wolak"
 $GitUserEmail = "wolak82@gmail.com"
 
-$ProjectPath = (Get-Location).Path
+$ProjectPath = $PSScriptRoot
 $TempRoot = Join-Path $env:TEMP "dzienniczek_hormonu_wzrostu_git_upload"
 $RepoWorkPath = Join-Path $TempRoot "repo"
 
@@ -45,6 +45,8 @@ $RequiredFiles = @(
     "icon-192.png",
     "icon-512.png",
     "README.md",
+    "upload_to_github_android.sh",
+    "URUCHOMIENIE_NA_ANDROIDZIE.txt",
     ".github\workflows\deploy-pages.yml"
 )
 

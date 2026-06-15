@@ -1,7 +1,7 @@
 {
   "name": "Dzienniczek hormonu wzrostu",
   "short_name": "Dzienniczek GH",
-  "description": "Prywatny dzienniczek podań hormonu wzrostu z obsługą głosową, klawiaturą, kalendarzem i historią.",
+  "description": "Prywatny dzienniczek podań hormonu wzrostu z obsługą głosową, klawiaturą, przypomnieniami i eksportem raportów.",
   "lang": "pl-PL",
   "id": "./",
   "start_url": "./",
@@ -29,13 +29,23 @@
       "name": "Dodaj dzisiejsze podanie",
       "short_name": "Dodaj wpis",
       "url": "./#today",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Historia podań",
       "short_name": "Historia",
       "url": "./#history",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
