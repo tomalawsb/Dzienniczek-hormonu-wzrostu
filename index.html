@@ -88,7 +88,11 @@
                 <span id="today-status-badge" class="status-badge status-badge--neutral">Brak wpisu</span>
               </div>
 
-              <div class="summary-chips" aria-label="Domyślne dane podania">
+              <div class="summary-chips" aria-label="Dane przygotowanego wpisu">
+                <button id="date-chip" class="summary-chip summary-chip--date" type="button" title="Zmień datę">
+                  <span aria-hidden="true">▣</span>
+                  <span>Data: <strong id="today-entry-date">Dzisiaj</strong></span>
+                </button>
                 <button id="dose-chip" class="summary-chip" type="button" title="Zmień dawkę">
                   <span aria-hidden="true">⌁</span>
                   <span>Dawka: <strong id="today-dose">1,0 mg</strong></span>
@@ -326,7 +330,7 @@
                 <button id="request-notification-button" class="button button--secondary button--small" type="button">Zezwól na powiadomienia</button>
                 <button id="test-notification-button" class="button button--secondary button--small" type="button">Wyślij test</button>
               </div>
-              <p class="muted reminder-note">Na statycznym hostingu GitHub Pages dokładne powiadomienie po całkowitym zamknięciu przeglądarki zależy od systemu i przeglądarki. Aplikacja wykorzystuje powiadomienia systemowe oraz dostępny mechanizm pracy w tle.</p>
+              <p class="muted reminder-note">Na GitHub Pages przypomnienie działa najpewniej, gdy aplikacja jest otwarta lub system pozwala jej pracować w tle. Po całkowitym zamknięciu przeglądarki dokładna godzina nie jest gwarantowana.</p>
               <button id="save-reminder-button" class="button button--primary button--small" type="button">Zapisz przypomnienie</button>
             </article>
 
@@ -348,7 +352,7 @@
               </label>
               <div class="tip-box">
                 <strong>Przykłady poleceń</strong>
-                <span>„lewy brzuch”, „wczoraj prawe ramię”, „dawka jeden przecinek jeden”, „pomiń dzisiaj”, „zapisz”.</span>
+                <span>„lewy brzuch”, „wczoraj”, potem „prawe ramię”, „dawka jeden przecinek jeden”, „pomiń dzisiaj”, „zapisz”.</span>
               </div>
             </article>
 
@@ -356,8 +360,8 @@
               <h2>Kopia danych</h2>
               <p class="muted">Wpisy są przechowywane lokalnie w tej przeglądarce. Telefon i komputer mają osobne dane, dopóki nie przeniesiesz kopii.</p>
               <div class="button-stack">
-                <button id="export-pdf-button" class="button button--secondary button--small" type="button">Eksportuj raport PDF</button>
-                <button id="export-word-button" class="button button--secondary button--small" type="button">Eksportuj do Word (.doc)</button>
+                <button id="export-pdf-button" class="button button--secondary button--small" type="button">Drukuj / zapisz raport PDF</button>
+                <button id="export-word-button" class="button button--secondary button--small" type="button">Eksportuj do Word (.docx)</button>
                 <button id="export-json-button" class="button button--secondary button--small" type="button">Eksportuj kopię JSON</button>
                 <button id="export-csv-button" class="button button--secondary button--small" type="button">Eksportuj historię CSV</button>
                 <button id="import-button" class="button button--secondary button--small" type="button">Importuj kopię JSON</button>
@@ -371,9 +375,9 @@
               <dl class="shortcut-list">
                 <div><dt><kbd>Alt</kbd> + <kbd>1–4</kbd></dt><dd>Zmiana zakładki</dd></div>
                 <div><dt><kbd>Alt</kbd> + <kbd>M</kbd></dt><dd>Uruchomienie mikrofonu</dd></div>
-                <div><dt><kbd>Alt</kbd> + <kbd>N</kbd></dt><dd>Nowy wpis ręczny</dd></div>
-                <div><dt><kbd>Alt</kbd> + <kbd>P</kbd></dt><dd>Eksport raportu PDF</dd></div>
-                <div><dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Eksport raportu Word</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>N</kbd></dt><dd>Dodanie lub edycja dzisiejszego wpisu</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>P</kbd></dt><dd>Raport PDF</dd></div>
+                <div><dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Raport Word</dd></div>
                 <div><dt><kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd>Zapisanie przygotowanego wpisu</dd></div>
                 <div><dt><kbd>Esc</kbd></dt><dd>Zamknięcie okna lub anulowanie nagrywania</dd></div>
               </dl>
@@ -392,7 +396,7 @@
 
             <article class="card settings-card settings-card--wide">
               <h2>Informacje</h2>
-              <p>Aplikacja służy do prowadzenia prywatnego dzienniczka podań. Nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>
+              <p>Aplikacja pozwala zapisać tylko jeden wpis dziennie. Nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>
               <button id="settings-install-button" class="button button--primary button--small is-hidden" type="button">Zainstaluj aplikację PWA</button>
             </article>
           </div>
@@ -425,26 +429,17 @@
 
       <div class="permission-cards">
         <section class="permission-card">
-          <div>
-            <strong>Mikrofon</strong>
-            <span>Potrzebny do poleceń typu „lewy brzuch”.</span>
-          </div>
+          <div><strong>Mikrofon</strong><span>Potrzebny do poleceń typu „lewy brzuch”.</span></div>
           <button id="permission-microphone-button" class="button button--secondary button--small" type="button">Zezwól</button>
           <span id="permission-microphone-status" class="permission-status">Nie sprawdzono</span>
         </section>
         <section class="permission-card">
-          <div>
-            <strong>Powiadomienia</strong>
-            <span>Przypomnienie o zastrzyku i proponowanym miejscu.</span>
-          </div>
+          <div><strong>Powiadomienia</strong><span>Przypomnienie o zastrzyku i proponowanym miejscu.</span></div>
           <button id="permission-notification-button" class="button button--secondary button--small" type="button">Zezwól</button>
           <span id="permission-notification-status" class="permission-status">Nie sprawdzono</span>
         </section>
         <section class="permission-card">
-          <div>
-            <strong>Trwałe przechowywanie</strong>
-            <span>Zmniejsza ryzyko usunięcia historii przez przeglądarkę.</span>
-          </div>
+          <div><strong>Trwałe przechowywanie</strong><span>Zmniejsza ryzyko usunięcia historii przez przeglądarkę.</span></div>
           <button id="permission-storage-button" class="button button--secondary button--small" type="button">Włącz</button>
           <span id="permission-storage-status" class="permission-status">Nie sprawdzono</span>
         </section>
@@ -462,6 +457,7 @@
         <div>
           <p class="eyebrow">Wpis podania</p>
           <h2 id="entry-dialog-title">Dodaj wpis</h2>
+          <p class="muted entry-limit-note">Można zapisać tylko jeden wpis dla każdego dnia.</p>
         </div>
         <button id="dialog-close-button" class="icon-button" type="button" aria-label="Zamknij">×</button>
       </div>

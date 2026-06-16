@@ -1,0 +1,79 @@
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+const root = new URL('../', import.meta.url);
+const appPath = new URL('../app.js', import.meta.url);
+let source = await readFile(appPath, 'utf8');
+
+const hook = `
+  globalThis.__GH_TEST__ = {
+    parseVoiceEntry,
+    keepOneEntryPerDate,
+    sanitizeEntry,
+    setDraft: (draft) => { quickDraft = draft; },
+    applyVoiceEntryToDraft,
+    getDraft: () => ({ ...quickDraft }),
+    createDefaultDraft,
+    createDocxBlob,
+    setEntries: (entries) => { data.entries = entries; }
+  };
+`;
+const end = source.lastIndexOf('})();');
+if (end < 0) throw new Error('Nie znaleziono końca app.js.');
+source = `${source.slice(0, end)}${hook}})();\n`;
+
+const tempPath = join(tmpdir(), `dzienniczek-logic-${Date.now()}.mjs`);
+await writeFile(tempPath, source, 'utf8');
+
+globalThis.localStorage = { getItem() { return null; }, setItem() {} };
+globalThis.document = { addEventListener() {} };
+globalThis.window = {};
+
+try {
+  await import(`file://${tempPath}`);
+  const t = globalThis.__GH_TEST__;
+  const assert = (condition, message) => {
+    if (!condition) throw new Error(message);
+  };
+
+  const placeOnly = t.parseVoiceEntry('lewy brzuch');
+  assert(!Object.hasOwn(placeOnly, 'date'), 'Polecenie bez daty nie może nadpisywać daty szkicu.');
+  assert(placeOnly.side === 'lewa' && placeOnly.site === 'brzuch', 'Nie rozpoznano miejsca wkłucia.');
+
+  t.setDraft(t.createDefaultDraft({ date: '2026-06-14', time: '20:00' }));
+  t.applyVoiceEntryToDraft(placeOnly);
+  assert(t.getDraft().date === '2026-06-14', 'Drugie polecenie głosowe nadpisało wcześniej wybraną datę.');
+
+  const entry = (id, updatedAt) => ({
+    id,
+    date: '2026-06-15',
+    time: '21:00',
+    dose: '1,1',
+    unit: 'mg',
+    side: 'lewa',
+    site: 'brzuch',
+    status: 'given',
+    note: '',
+    createdAt: '2026-06-15T19:00:00.000Z',
+    updatedAt
+  });
+  const unique = t.keepOneEntryPerDate([
+    entry('entry-old', '2026-06-15T20:00:00.000Z'),
+    entry('entry-new', '2026-06-15T21:00:00.000Z')
+  ]);
+  assert(unique.entries.length === 1, 'Nie zablokowano wielu wpisów dla jednego dnia.');
+  assert(unique.entries[0].id === 'entry-new', 'Nie zachowano najnowszego wpisu podczas migracji duplikatów.');
+  assert(unique.removedDuplicates === 1, 'Nie zliczono usuniętego duplikatu.');
+
+  assert(t.sanitizeEntry({ ...entry('<script>', ''), id: '<script>' }) === null, 'Niebezpieczny identyfikator wpisu nie został odrzucony.');
+
+  t.setEntries([entry('entry-docx', '2026-06-15T21:00:00.000Z')]);
+  const docx = new Uint8Array(await t.createDocxBlob().arrayBuffer());
+  assert(docx[0] === 0x50 && docx[1] === 0x4b, 'Eksport DOCX nie tworzy prawidłowego kontenera ZIP.');
+
+  console.log('Testy logiki: OK');
+} finally {
+  delete globalThis.__GH_TEST__;
+  await unlink(tempPath).catch(() => {});
+}

@@ -1,0 +1,49 @@
+DZIENNICZEK HORMONU WZROSTU
+Wersja 1.2 - 1506262326
+
+NAJWAŻNIEJSZA ZASADA
+- Aplikacja pozwala zapisać tylko jeden wpis dla jednego dnia.
+- Dotyczy podania, pominięcia, zapisu głosowego, ręcznego i importu JSON.
+- Jeżeli wpis już istnieje, przycisk dodawania otwiera go do edycji.
+
+POPRAWIONA LOGIKA
+- Polecenia głosowe można podawać etapami.
+- Polecenie bez daty nie nadpisuje daty wcześniej ustawionej.
+- Dodano widoczną datę przygotowanego wpisu na ekranie głównym.
+- Data odświeża się po północy oraz po powrocie do aplikacji.
+- Przyszłe wpisy nie wpływają na propozycję kolejnego miejsca wkłucia.
+- Formularz blokuje zmianę daty na dzień, dla którego istnieje inny wpis.
+- Przy edycji zachowywana jest pierwotna data utworzenia wpisu.
+- Pominięta dawka nie przechowuje dawki ani miejsca wkłucia.
+
+DANE I BEZPIECZEŃSTWO
+- Dodano dokładną walidację importowanych wpisów.
+- Import z dwoma wpisami dla tego samego dnia jest odrzucany.
+- Niebezpieczne identyfikatory i nieprawidłowe wartości są odrzucane.
+- Przed zapisem tworzona jest lokalna kopia poprzedniego stanu.
+- Dodano obsługę błędów zapisu do pamięci przeglądarki.
+- Stare duplikaty są migrowane do jednego najnowszego wpisu na dzień, a wcześniejszy stan trafia do lokalnej kopii.
+
+EKSPORT
+- Word tworzy teraz prawidłowy plik .docx, a nie HTML z rozszerzeniem .doc.
+- PDF nadal korzysta z systemowego okna drukowania i opcji „Zapisz jako PDF”.
+
+PWA I GITHUB
+- Skróty z manifestu otwierają właściwą zakładkę przez adres #today lub #history.
+- GitHub Actions sprawdza składnię i logikę przed publikacją.
+- Na GitHub Pages publikowane są wyłącznie pliki aplikacji.
+- Skrypt Android instaluje również Python.
+- Skrypty używają adresu GitHub noreply zamiast prywatnego adresu e-mail.
+- Skrypty nie usuwają automatycznie dodatkowych plików z repozytorium.
+
+TESTY
+- kontrola struktury projektu,
+- kontrola identyfikatorów HTML,
+- kontrola składni JavaScript,
+- test wieloetapowej obsługi głosowej,
+- test jednego wpisu dziennie,
+- test walidacji identyfikatorów,
+- test kontenera DOCX.
+
+OGRANICZENIE
+- Statyczna PWA na GitHub Pages nie gwarantuje powiadomienia dokładnie o ustawionej godzinie po całkowitym zamknięciu przeglądarki. Do pełnej niezawodności potrzebna jest wersja APK albo serwer Web Push.

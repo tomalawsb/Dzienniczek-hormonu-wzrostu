@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/tomalawsb/Dzienniczek-hormonu-wzrostu.git"
 GIT_USER_NAME="Tomasz Wolak"
-GIT_USER_EMAIL="wolak82@gmail.com"
+GIT_USER_EMAIL="195302343+tomalawsb@users.noreply.github.com"
 PROJECT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TEMP_ROOT="$HOME/.cache/dzienniczek_hormonu_wzrostu_git_upload"
 REPO_WORK_PATH="$TEMP_ROOT/repo"
@@ -28,8 +28,8 @@ info "Repozytorium: $REPO_URL"
 
 info "Sprawdzam potrzebne pakiety..."
 pkg update -y >/dev/null
-pkg install -y git gh rsync >/dev/null
-ok "Git, GitHub CLI i rsync są gotowe."
+pkg install -y python git gh rsync >/dev/null
+ok "Python, Git, GitHub CLI i rsync są gotowe."
 
 REQUIRED_FILES=(
   "index.html"
@@ -41,6 +41,8 @@ REQUIRED_FILES=(
   "icon-192.png"
   "icon-512.png"
   "README.md"
+  "tests/validate_project.py"
+  "tests/logic_test.mjs"
   ".github/workflows/deploy-pages.yml"
 )
 
@@ -69,6 +71,10 @@ gh auth setup-git >/dev/null 2>&1 || true
 rm -rf "$TEMP_ROOT"
 mkdir -p "$TEMP_ROOT"
 
+info "Sprawdzam projekt przed wysłaniem..."
+python "$PROJECT_PATH/tests/validate_project.py" "$PROJECT_PATH"
+ok "Kontrola projektu zakończona poprawnie."
+
 info "Pobieram aktualne repozytorium..."
 git clone "$REPO_URL" "$REPO_WORK_PATH"
 
@@ -79,7 +85,7 @@ git config core.autocrlf false
 git branch -M main
 
 info "Kopiuję cały projekt..."
-rsync -a --delete \
+rsync -a \
   --exclude='.git/' \
   --exclude='node_modules/' \
   --exclude='.idea/' \

@@ -24,13 +24,29 @@ jobs:
       - name: Pobranie repozytorium
         uses: actions/checkout@v4
 
+      - name: Kontrola składni JavaScript
+        run: |
+          node --check app.js
+          node --check service-worker.js
+
+      - name: Kontrola struktury projektu
+        run: python tests/validate_project.py .
+
+      - name: Testy logiki
+        run: node tests/logic_test.mjs
+
+      - name: Przygotowanie wyłącznie plików aplikacji
+        run: |
+          mkdir -p dist
+          cp index.html style.css app.js manifest.json app-version.json service-worker.js icon-192.png icon-512.png .nojekyll dist/
+
       - name: Konfiguracja GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Przygotowanie plików
+      - name: Utworzenie paczki strony
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: dist
 
       - name: Publikacja
         id: deployment

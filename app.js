@@ -2,6 +2,13 @@
   'use strict';
 
   const STORAGE_KEY = 'dzienniczek-hormonu-wzrostu-v1';
+  const BACKUP_STORAGE_KEY = 'dzienniczek-hormonu-wzrostu-v1-backup';
+  const MAX_NOTE_LENGTH = 1000;
+  const ALLOWED_UNITS = new Set(['mg', 'ml', 'IU', 'j.m.']);
+  const ALLOWED_SIDES = new Set(['lewa', 'prawa']);
+  const ALLOWED_SITES = new Set(['brzuch', 'udo', 'ramię', 'pośladek', 'łopatka']);
+  const ALLOWED_STATUSES = new Set(['given', 'skipped']);
+  const startupWarnings = [];
   const MONTHS = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
   const MONTHS_NORMALIZED = {
     stycznia: 0, styczen: 0,
@@ -35,7 +42,7 @@
   ];
 
   const defaultData = {
-    version: 2,
+    version: 3,
     settings: {
       defaultDose: '1,0',
       unit: 'mg',
@@ -53,6 +60,7 @@
   };
 
   let data = loadData();
+  let lastKnownLocalDate = localDateISO();
   let activeView = 'today';
   let selectedCalendarDate = localDateISO();
   let calendarCursor = startOfMonth(new Date());
@@ -60,7 +68,9 @@
   let recognition = null;
   let isListening = false;
   let lastRecognizedText = '';
-  let quickDraft = createDefaultDraft();
+  let quickDraft = createInitialQuickDraft();
+  let quickDraftTouched = false;
+  let midnightTimer = null;
   let reminderTimer = null;
   let serviceWorkerRegistration = null;
 
@@ -75,20 +85,23 @@
     updateCurrentDateHeader();
     loadVersion();
     renderAll();
+    switchView(viewFromHash(), { updateHash: false, focus: false, smooth: false });
     await registerServiceWorker();
     updateOnlineInstallState();
     await updatePermissionStatuses();
     scheduleDailyReminder();
+    scheduleMidnightRefresh();
     checkReminderDue();
     maybeShowFirstRunPermissions();
+    flushStartupWarnings();
   }
 
   function cacheElements() {
     const ids = [
-      'current-date-label', 'today-dose', 'today-time', 'today-status-heading', 'today-status-badge',
+      'current-date-label', 'today-entry-date', 'today-dose', 'today-time', 'today-status-heading', 'today-status-badge',
       'voice-button', 'voice-result', 'voice-result-text', 'selected-place', 'save-button', 'edit-button',
       'skip-button', 'last-place', 'suggested-place', 'use-suggestion-button', 'mini-calendar', 'recent-list',
-      'quick-add-button', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
+      'quick-add-button', 'date-chip', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
       'entry-dialog-title', 'entry-id', 'entry-date', 'entry-time', 'entry-dose', 'entry-unit', 'entry-side',
       'entry-site', 'entry-status', 'entry-note', 'delete-entry-button', 'dialog-close-button',
       'dialog-cancel-button', 'toast-region', 'live-region', 'calendar-prev', 'calendar-next',
@@ -114,14 +127,15 @@
     });
 
     document.querySelectorAll('[data-open-entry]').forEach((button) => {
-      button.addEventListener('click', () => openEntryDialog());
+      button.addEventListener('click', () => openEntryForDate(localDateISO()));
     });
 
-    el['quick-add-button'].addEventListener('click', () => openEntryDialog());
-    el['edit-button'].addEventListener('click', () => openEntryDialog(null, quickDraft));
-    el['place-field'].addEventListener('click', () => openEntryDialog(null, quickDraft));
-    el['dose-chip'].addEventListener('click', () => openEntryDialog(null, quickDraft, 'entry-dose'));
-    el['time-chip'].addEventListener('click', () => openEntryDialog(null, quickDraft, 'entry-time'));
+    el['quick-add-button'].addEventListener('click', () => openEntryForDate(localDateISO()));
+    el['date-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-date'));
+    el['edit-button'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
+    el['place-field'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
+    el['dose-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-dose'));
+    el['time-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-time'));
     el['voice-button'].addEventListener('click', toggleVoiceRecognition);
     el['save-button'].addEventListener('click', saveQuickDraft);
     el['skip-button'].addEventListener('click', prepareSkippedDraft);
@@ -138,7 +152,7 @@
 
     el['calendar-prev'].addEventListener('click', () => changeCalendarMonth(-1));
     el['calendar-next'].addEventListener('click', () => changeCalendarMonth(1));
-    el['add-for-selected-day'].addEventListener('click', () => openEntryDialog(null, { date: selectedCalendarDate }));
+    el['add-for-selected-day'].addEventListener('click', openOrEditSelectedDay);
     el['calendar-grid'].addEventListener('keydown', handleCalendarKeydown);
 
     [el['history-search'], el['status-filter'], el['site-filter']].forEach((control) => {
@@ -185,14 +199,15 @@
     });
 
     document.addEventListener('keydown', handleGlobalKeyboard);
-    window.addEventListener('focus', checkReminderDue);
+    window.addEventListener('focus', handleAppResume);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') checkReminderDue();
+      if (document.visibilityState === 'visible') handleAppResume();
     });
+    window.addEventListener('hashchange', () => switchView(viewFromHash(), { updateHash: false, focus: false, smooth: false }));
     window.addEventListener('storage', (event) => {
       if (event.key === STORAGE_KEY) {
         data = loadData();
-        quickDraft = createDefaultDraft();
+        resetQuickDraftForToday();
         renderAll();
         showToast('Dane odświeżono z innej karty.', 'success');
       }
@@ -200,28 +215,140 @@
   }
 
   function loadData() {
+    const primaryRaw = safeStorageGet(STORAGE_KEY);
+    const backupRaw = safeStorageGet(BACKUP_STORAGE_KEY);
+
+    for (const [raw, source] of [[primaryRaw, 'głównej pamięci'], [backupRaw, 'kopii zapasowej']]) {
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const result = normalizeStoredData(parsed);
+        if (source === 'kopii zapasowej') {
+          startupWarnings.push('Odzyskano dane z lokalnej kopii zapasowej, ponieważ główny zapis był niedostępny lub uszkodzony.');
+        }
+        if (result.removedDuplicates > 0) {
+          safeStorageSet(BACKUP_STORAGE_KEY, raw);
+          startupWarnings.push(`Wykryto ${result.removedDuplicates} zduplikowanych wpisów. Zachowano po jednym, najnowszym wpisie dla każdego dnia.`);
+        }
+        return result.data;
+      } catch (error) {
+        console.error(`Nie udało się odczytać danych z ${source}:`, error);
+      }
+    }
+
+    if (primaryRaw || backupRaw) startupWarnings.push('Nie udało się odczytać zapisanej historii. Uruchomiono pusty dzienniczek.');
+    return structuredCloneSafe(defaultData);
+  }
+
+  function normalizeStoredData(parsed) {
+    const entriesInput = Array.isArray(parsed?.entries) ? parsed.entries : [];
+    const sanitized = entriesInput.map(sanitizeEntry).filter(Boolean);
+    const { entries, removedDuplicates } = keepOneEntryPerDate(sanitized);
+    return {
+      removedDuplicates,
+      data: {
+        version: 3,
+        settings: sanitizeSettings(parsed?.settings),
+        meta: sanitizeMeta(parsed?.meta),
+        entries
+      }
+    };
+  }
+
+  function sanitizeSettings(settings = {}) {
+    const dose = normalizeDose(settings.defaultDose) || defaultData.settings.defaultDose;
+    return {
+      defaultDose: dose,
+      unit: ALLOWED_UNITS.has(settings.unit) ? settings.unit : defaultData.settings.unit,
+      defaultTime: isValidTime(settings.defaultTime) ? settings.defaultTime : defaultData.settings.defaultTime,
+      voiceFeedback: typeof settings.voiceFeedback === 'boolean' ? settings.voiceFeedback : defaultData.settings.voiceFeedback,
+      voiceConfirm: typeof settings.voiceConfirm === 'boolean' ? settings.voiceConfirm : defaultData.settings.voiceConfirm,
+      reminderEnabled: typeof settings.reminderEnabled === 'boolean' ? settings.reminderEnabled : defaultData.settings.reminderEnabled,
+      reminderTime: isValidTime(settings.reminderTime) ? settings.reminderTime : defaultData.settings.reminderTime
+    };
+  }
+
+  function sanitizeMeta(meta = {}) {
+    return {
+      onboardingCompleted: Boolean(meta.onboardingCompleted),
+      lastReminderDate: isValidIsoDate(meta.lastReminderDate) ? meta.lastReminderDate : ''
+    };
+  }
+
+  function sanitizeEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const id = typeof entry.id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(entry.id) ? entry.id : '';
+    const date = isValidIsoDate(entry.date) ? entry.date : '';
+    const time = isValidTime(entry.time) ? entry.time : '';
+    const status = ALLOWED_STATUSES.has(entry.status) ? entry.status : '';
+    if (!id || !date || !time || !status) return null;
+
+    const base = {
+      id,
+      date,
+      time,
+      status,
+      note: typeof entry.note === 'string' ? entry.note.trim().slice(0, MAX_NOTE_LENGTH) : '',
+      createdAt: isValidDateTime(entry.createdAt) ? entry.createdAt : new Date(`${date}T${time}:00`).toISOString(),
+      updatedAt: isValidDateTime(entry.updatedAt) ? entry.updatedAt : ''
+    };
+
+    if (status === 'skipped') {
+      return { ...base, dose: '', unit: '', side: '', site: '' };
+    }
+
+    const dose = normalizeDose(entry.dose);
+    const unit = ALLOWED_UNITS.has(entry.unit) ? entry.unit : '';
+    const side = ALLOWED_SIDES.has(entry.side) ? entry.side : '';
+    const site = ALLOWED_SITES.has(entry.site) ? entry.site : '';
+    if (!dose || !unit || !side || !site) return null;
+    return { ...base, dose, unit, side, site };
+  }
+
+  function keepOneEntryPerDate(entries) {
+    const sorted = [...entries].sort((a, b) => entryFreshnessKey(b).localeCompare(entryFreshnessKey(a)));
+    const seenDates = new Set();
+    const unique = [];
+    let removedDuplicates = 0;
+    sorted.forEach((entry) => {
+      if (seenDates.has(entry.date)) {
+        removedDuplicates += 1;
+        return;
+      }
+      seenDates.add(entry.date);
+      unique.push(entry);
+    });
+    return { entries: unique, removedDuplicates };
+  }
+
+  function entryFreshnessKey(entry) {
+    return entry.updatedAt || entry.createdAt || `${entry.date}T${entry.time}:00`;
+  }
+
+  function persistData({ notifyError = true } = {}) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return structuredCloneSafe(defaultData);
-      const parsed = JSON.parse(raw);
-      return {
-        version: 2,
-        settings: { ...defaultData.settings, ...(parsed.settings || {}) },
-        meta: { ...defaultData.meta, ...(parsed.meta || {}) },
-        entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isValidEntry) : []
-      };
+      const previous = localStorage.getItem(STORAGE_KEY);
+      if (previous) localStorage.setItem(BACKUP_STORAGE_KEY, previous);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      window.queueMicrotask(() => {
+        scheduleDailyReminder();
+        syncReminderStateWithServiceWorker();
+      });
+      return true;
     } catch (error) {
-      console.error('Nie udało się odczytać danych:', error);
-      return structuredCloneSafe(defaultData);
+      console.error('Nie udało się zapisać danych:', error);
+      if (notifyError && el['toast-region']) showToast('Nie udało się zapisać danych w pamięci urządzenia. Wykonaj eksport kopii JSON.', 'error');
+      else startupWarnings.push('Nie udało się zapisać danych w pamięci urządzenia.');
+      return false;
     }
   }
 
-  function persistData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    window.queueMicrotask(() => {
-      scheduleDailyReminder();
-      syncReminderStateWithServiceWorker();
-    });
+  function safeStorageGet(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+
+  function safeStorageSet(key, value) {
+    try { localStorage.setItem(key, value); return true; } catch { return false; }
   }
 
   function structuredCloneSafe(value) {
@@ -231,7 +358,21 @@
   }
 
   function isValidEntry(entry) {
-    return entry && typeof entry.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.date || '');
+    return Boolean(sanitizeEntry(entry));
+  }
+
+  function isValidIsoDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return Boolean(match && isValidDateParts(Number(match[1]), Number(match[2]), Number(match[3])));
+  }
+
+  function isValidTime(value) {
+    const match = String(value || '').match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+    return Boolean(match);
+  }
+
+  function isValidDateTime(value) {
+    return typeof value === 'string' && !Number.isNaN(Date.parse(value));
   }
 
   function createDefaultDraft(overrides = {}) {
@@ -248,6 +389,62 @@
       note: '',
       ...overrides
     };
+  }
+
+  function createInitialQuickDraft() {
+    const todayEntry = getEntryForDate(localDateISO());
+    return todayEntry ? { ...todayEntry } : createDefaultDraft();
+  }
+
+  function resetQuickDraftForToday() {
+    quickDraft = createInitialQuickDraft();
+    quickDraftTouched = false;
+    lastRecognizedText = '';
+  }
+
+  function getEntryForDate(date, excludeId = '') {
+    return data.entries.find((entry) => entry.date === date && entry.id !== excludeId) || null;
+  }
+
+  function flushStartupWarnings() {
+    if (!startupWarnings.length) return;
+    const message = startupWarnings.join(' ');
+    startupWarnings.length = 0;
+    showToast(message, 'error', 9000);
+  }
+
+  function handleAppResume() {
+    refreshDayState();
+    checkReminderDue();
+  }
+
+  function refreshDayState() {
+    updateCurrentDateHeader();
+    const currentDate = localDateISO();
+    if (currentDate === lastKnownLocalDate) return;
+
+    const previousDate = lastKnownLocalDate;
+    lastKnownLocalDate = currentDate;
+    if (!quickDraftTouched && (!quickDraft.id || quickDraft.date === previousDate)) {
+      resetQuickDraftForToday();
+    } else if (quickDraft.date === previousDate) {
+      showToast('Zmienił się dzień. Sprawdź datę przygotowanego wpisu przed zapisaniem.', 'error', 7000);
+    }
+    if (activeView === 'today') {
+      selectedCalendarDate = currentDate;
+      calendarCursor = startOfMonth(new Date());
+    }
+    renderAll();
+    scheduleDailyReminder();
+    syncReminderStateWithServiceWorker();
+    scheduleMidnightRefresh();
+  }
+
+  function scheduleMidnightRefresh() {
+    if (midnightTimer) window.clearTimeout(midnightTimer);
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1, 0);
+    midnightTimer = window.setTimeout(() => refreshDayState(), Math.max(1000, next.getTime() - now.getTime()));
   }
 
   function renderAll() {
@@ -269,10 +466,13 @@
 
   function renderToday() {
     const today = localDateISO();
-    const todaysEntries = getEntriesSorted().filter((entry) => entry.date === today);
-    const latestToday = todaysEntries[0];
+    const todayEntry = getEntryForDate(today);
+    const editingExisting = Boolean(quickDraft.id && data.entries.some((entry) => entry.id === quickDraft.id));
 
-    el['today-dose'].textContent = `${formatDose(quickDraft.dose)} ${quickDraft.unit}`;
+    el['today-entry-date'].textContent = quickDraft.date === today ? 'Dzisiaj' : formatDateShort(quickDraft.date);
+    el['today-dose'].textContent = quickDraft.status === 'skipped'
+      ? '—'
+      : `${formatDose(quickDraft.dose)} ${quickDraft.unit}`;
     el['today-time'].textContent = quickDraft.time;
     el['selected-place'].textContent = quickDraft.status === 'skipped'
       ? 'Dawka pominięta'
@@ -280,12 +480,18 @@
 
     const ready = quickDraft.status === 'skipped' || Boolean(quickDraft.side && quickDraft.site && normalizeDose(quickDraft.dose));
     el['save-button'].disabled = !ready;
+    el['save-button'].innerHTML = editingExisting
+      ? '<span aria-hidden="true">✓</span> Zapisz zmiany'
+      : '<span aria-hidden="true">✓</span> Zapisz';
+    el['edit-button'].innerHTML = editingExisting
+      ? '<span aria-hidden="true">✎</span> Edytuj szczegóły'
+      : '<span aria-hidden="true">✎</span> Wpisz ręcznie';
 
-    if (latestToday) {
-      el['today-status-badge'].className = `status-badge status-badge--${latestToday.status}`;
-      el['today-status-badge'].textContent = latestToday.status === 'given' ? 'Podano' : 'Pominięto';
-      el['today-status-heading'].textContent = latestToday.status === 'given'
-        ? `Zapisano o ${latestToday.time}`
+    if (todayEntry) {
+      el['today-status-badge'].className = `status-badge status-badge--${todayEntry.status}`;
+      el['today-status-badge'].textContent = todayEntry.status === 'given' ? 'Podano' : 'Pominięto';
+      el['today-status-heading'].textContent = todayEntry.status === 'given'
+        ? `Zapisano o ${todayEntry.time}`
         : 'Dawka oznaczona jako pominięta';
     } else {
       el['today-status-badge'].className = 'status-badge status-badge--neutral';
@@ -301,12 +507,12 @@
       el['voice-result-text'].textContent = '';
     }
 
-    const latestGiven = getEntriesSorted().find((entry) => entry.status === 'given' && entry.side && entry.site);
+    const latestGiven = getLatestGivenBefore(new Date());
     el['last-place'].textContent = latestGiven
       ? `${formatPlace(latestGiven.side, latestGiven.site)} · ${formatDateShort(latestGiven.date)}`
       : 'Brak wcześniejszych wpisów';
 
-    const suggestion = getSuggestedPlace();
+    const suggestion = getSuggestedPlace(new Date());
     el['suggested-place'].textContent = capitalize(formatPlace(suggestion.side, suggestion.site));
   }
 
@@ -369,8 +575,8 @@
       if (date.getMonth() !== month) classes.push('is-outside');
       if (iso === selectedCalendarDate) classes.push('is-selected');
       if (iso === localDateISO()) classes.push('is-today');
-      const markers = entries.slice(0, 4).map((entry) => `<i class="day-marker day-marker--${entry.status}" aria-hidden="true"></i>`).join('');
-      const statusText = entries.length ? `, ${entries.length} ${plural(entries.length, 'wpis', 'wpisy', 'wpisów')}` : ', brak wpisów';
+      const markers = entries.slice(0, 1).map((entry) => `<i class="day-marker day-marker--${entry.status}" aria-hidden="true"></i>`).join('');
+      const statusText = entries.length ? ', zapisano jeden wpis' : ', brak wpisu';
       html += `
         <button class="${classes.join(' ')}" type="button" role="gridcell" data-date="${iso}" aria-label="${escapeHtml(formatDateLong(iso) + statusText)}" aria-selected="${iso === selectedCalendarDate}">
           <span class="day-number">${date.getDate()}</span>
@@ -387,12 +593,13 @@
 
   function renderSelectedDay() {
     el['selected-day-label'].textContent = capitalize(formatDateLong(selectedCalendarDate));
-    const entries = getEntriesSorted().filter((entry) => entry.date === selectedCalendarDate);
-    if (!entries.length) {
+    const entry = getEntryForDate(selectedCalendarDate);
+    el['add-for-selected-day'].textContent = entry ? 'Edytuj' : 'Dodaj';
+    if (!entry) {
       el['selected-day-entries'].innerHTML = '<div class="empty-state"><strong>Brak wpisu</strong><span>W tym dniu nie zapisano podania.</span></div>';
       return;
     }
-    el['selected-day-entries'].innerHTML = entries.map((entry) => `
+    el['selected-day-entries'].innerHTML = `
       <article class="day-entry-card">
         <strong>${entry.status === 'given' ? escapeHtml(formatPlace(entry.side, entry.site)) : 'Dawka pominięta'}</strong>
         <div class="day-entry-card-meta">
@@ -403,7 +610,7 @@
         ${entry.note ? `<span class="muted">${escapeHtml(entry.note)}</span>` : ''}
         <button class="text-button" type="button" data-edit-id="${entry.id}">Edytuj wpis</button>
       </article>
-    `).join('');
+    `;
   }
 
   function renderHistory() {
@@ -453,7 +660,7 @@
     updatePermissionStatuses();
   }
 
-  function switchView(view) {
+  function switchView(view, { updateHash = true, focus = true, smooth = true } = {}) {
     if (!['today', 'calendar', 'history', 'more'].includes(view)) return;
     activeView = view;
     document.querySelectorAll('.view').forEach((section) => {
@@ -468,8 +675,14 @@
     }
     if (view === 'history') renderHistory();
     if (view === 'more') renderSettings();
-    document.getElementById(`view-${view}`)?.querySelector('h1, [tabindex]')?.focus({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (updateHash && window.location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
+    if (focus) document.getElementById(`view-${view}`)?.querySelector('h1, [tabindex]')?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  function viewFromHash() {
+    const value = window.location.hash.replace('#', '').trim();
+    return ['today', 'calendar', 'history', 'more'].includes(value) ? value : 'today';
   }
 
   function updateNavigation() {
@@ -481,10 +694,24 @@
     });
   }
 
+  function openEntryForDate(date, focusId = null) {
+    const existing = getEntryForDate(date);
+    if (existing) {
+      showToast('Dla tego dnia istnieje już wpis. Otwieram go do edycji.');
+      openEntryDialog(existing.id, null, focusId);
+      return;
+    }
+    openEntryDialog(null, { date }, focusId);
+  }
+
+  function openOrEditSelectedDay() {
+    openEntryForDate(selectedCalendarDate);
+  }
+
   function openEntryDialog(entryId = null, draftOverride = null, focusId = null) {
     const entry = entryId ? data.entries.find((item) => item.id === entryId) : null;
     const source = entry
-      ? { ...entry }
+      ? { ...entry, ...(draftOverride || {}) }
       : { ...createDefaultDraft({ time: data.settings.defaultTime }), ...(draftOverride || {}) };
     el['entry-dialog-title'].textContent = entry ? 'Edytuj wpis' : 'Dodaj wpis';
     el['entry-id'].value = source.id || '';
@@ -515,94 +742,144 @@
 
   function handleEntrySubmit(event) {
     event.preventDefault();
-    const entry = {
-      id: el['entry-id'].value || createId(),
+    const existingById = data.entries.find((item) => item.id === el['entry-id'].value) || null;
+    const status = el['entry-status'].value;
+    const entry = sanitizeEntry({
+      id: existingById?.id || createId(),
       date: el['entry-date'].value,
       time: el['entry-time'].value,
-      dose: normalizeDose(el['entry-dose'].value) || data.settings.defaultDose,
-      unit: el['entry-unit'].value,
-      side: el['entry-status'].value === 'given' ? el['entry-side'].value : '',
-      site: el['entry-status'].value === 'given' ? el['entry-site'].value : '',
-      status: el['entry-status'].value,
-      note: el['entry-note'].value.trim(),
-      createdAt: new Date().toISOString()
-    };
+      dose: status === 'given' ? el['entry-dose'].value : '',
+      unit: status === 'given' ? el['entry-unit'].value : '',
+      side: status === 'given' ? el['entry-side'].value : '',
+      site: status === 'given' ? el['entry-site'].value : '',
+      status,
+      note: el['entry-note'].value,
+      createdAt: existingById?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
 
-    if (!entry.date || !entry.time) {
-      showToast('Podaj datę i godzinę.', 'error');
+    if (!entry) {
+      showToast(status === 'given'
+        ? 'Uzupełnij prawidłową datę, godzinę, dawkę, stronę i miejsce wkłucia.'
+        : 'Uzupełnij prawidłową datę i godzinę.', 'error');
       return;
     }
-    if (entry.status === 'given' && (!entry.side || !entry.site || !entry.dose)) {
-      showToast('Uzupełnij dawkę, stronę i miejsce wkłucia.', 'error');
+
+    const conflictingEntry = getEntryForDate(entry.date, entry.id);
+    if (conflictingEntry) {
+      showToast('Dla tej daty istnieje już wpis. Aplikacja pozwala tylko na jeden wpis dziennie.', 'error');
       return;
     }
 
     const existingIndex = data.entries.findIndex((item) => item.id === entry.id);
     if (existingIndex >= 0) data.entries[existingIndex] = entry;
     else data.entries.push(entry);
-    persistData();
+    if (!persistData()) return;
     closeEntryDialog();
-    quickDraft = createDefaultDraft();
-    lastRecognizedText = '';
     selectedCalendarDate = entry.date;
     calendarCursor = startOfMonth(parseISODate(entry.date));
+    resetQuickDraftForToday();
     renderAll();
-    showToast(existingIndex >= 0 ? 'Wpis został poprawiony.' : 'Wpis został zapisany.', 'success');
-    speakIfEnabled(existingIndex >= 0 ? 'Wpis został poprawiony.' : 'Wpis został zapisany.');
+    const message = existingIndex >= 0 ? 'Wpis został poprawiony.' : 'Wpis został zapisany.';
+    showToast(message, 'success');
+    speakIfEnabled(message);
   }
 
   function saveQuickDraft() {
-    if (quickDraft.status === 'given' && (!quickDraft.side || !quickDraft.site)) {
-      showToast('Najpierw wybierz lub powiedz miejsce wkłucia.', 'error');
+    if (quickDraft.status === 'given' && (!quickDraft.side || !quickDraft.site || !normalizeDose(quickDraft.dose))) {
+      showToast('Najpierw wybierz lub powiedz miejsce wkłucia oraz sprawdź dawkę.', 'error');
       return;
     }
 
-    const sameDateEntries = data.entries.filter((entry) => entry.date === quickDraft.date);
-    if (sameDateEntries.length && !window.confirm('Dla tego dnia istnieje już wpis. Czy dodać kolejny?')) return;
+    const existingById = quickDraft.id ? data.entries.find((item) => item.id === quickDraft.id) : null;
+    const conflictingEntry = getEntryForDate(quickDraft.date, quickDraft.id || '');
+    if (conflictingEntry) {
+      showToast('Dla tej daty istnieje już wpis. Otwieram istniejący wpis do edycji.', 'error');
+      openEntryDialog(conflictingEntry.id);
+      return;
+    }
 
-    const entry = {
+    const entry = sanitizeEntry({
       ...quickDraft,
-      id: createId(),
-      dose: normalizeDose(quickDraft.dose) || data.settings.defaultDose,
-      createdAt: new Date().toISOString()
-    };
-    data.entries.push(entry);
-    persistData();
+      id: existingById?.id || createId(),
+      dose: quickDraft.status === 'given' ? quickDraft.dose : '',
+      unit: quickDraft.status === 'given' ? quickDraft.unit : '',
+      side: quickDraft.status === 'given' ? quickDraft.side : '',
+      site: quickDraft.status === 'given' ? quickDraft.site : '',
+      createdAt: existingById?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    if (!entry) {
+      showToast('Przygotowany wpis zawiera nieprawidłowe dane.', 'error');
+      return;
+    }
+
+    const existingIndex = data.entries.findIndex((item) => item.id === entry.id);
+    if (existingIndex >= 0) data.entries[existingIndex] = entry;
+    else data.entries.push(entry);
+    if (!persistData()) return;
     selectedCalendarDate = entry.date;
     calendarCursor = startOfMonth(parseISODate(entry.date));
-    quickDraft = createDefaultDraft();
-    lastRecognizedText = '';
+    resetQuickDraftForToday();
     renderAll();
     const message = entry.status === 'given'
-      ? `Zapisano: ${formatPlace(entry.side, entry.site)}.`
-      : 'Zapisano pominięcie dawki.';
+      ? `${existingIndex >= 0 ? 'Zmieniono' : 'Zapisano'}: ${formatPlace(entry.side, entry.site)}.`
+      : `${existingIndex >= 0 ? 'Zmieniono wpis na' : 'Zapisano'} pominięcie dawki.`;
     showToast(message, 'success');
     speakIfEnabled(message);
   }
 
   function prepareSkippedDraft() {
-    quickDraft = createDefaultDraft({ status: 'skipped', side: '', site: '' });
+    const today = localDateISO();
+    const existing = getEntryForDate(today);
+    quickDraft = existing
+      ? { ...existing, status: 'skipped', dose: '', unit: '', side: '', site: '' }
+      : createDefaultDraft({ status: 'skipped', dose: '', unit: '', side: '', site: '' });
+    quickDraftTouched = true;
     lastRecognizedText = 'dawka pominięta dzisiaj';
     renderToday();
-    showToast('Przygotowano wpis „Pominięto”. Naciśnij Zapisz, aby potwierdzić.');
+    showToast(existing
+      ? 'Przygotowano zmianę dzisiejszego wpisu na „Pominięto”. Naciśnij „Zapisz zmiany”.'
+      : 'Przygotowano wpis „Pominięto”. Naciśnij „Zapisz”, aby potwierdzić.');
   }
 
   function useSuggestedPlace() {
-    const suggestion = getSuggestedPlace();
+    const reference = dateTimeFromEntry(quickDraft) || new Date();
+    const suggestion = getSuggestedPlace(reference);
     quickDraft.side = suggestion.side;
     quickDraft.site = suggestion.site;
     quickDraft.status = 'given';
+    if (!quickDraft.unit) quickDraft.unit = data.settings.unit;
+    if (!quickDraft.dose) quickDraft.dose = data.settings.defaultDose;
+    quickDraftTouched = true;
     lastRecognizedText = formatPlace(suggestion.side, suggestion.site);
     renderToday();
     el['save-button'].focus();
   }
 
-  function getSuggestedPlace() {
-    const latest = getEntriesSorted().find((entry) => entry.status === 'given' && entry.side && entry.site);
+  function getLatestGivenBefore(referenceDate = new Date()) {
+    const referenceMs = referenceDate.getTime();
+    return getEntriesSorted().find((entry) => {
+      if (entry.status !== 'given' || !entry.side || !entry.site) return false;
+      const value = dateTimeFromEntry(entry);
+      return value && value.getTime() <= referenceMs;
+    }) || null;
+  }
+
+  function getSuggestedPlace(referenceDate = new Date()) {
+    const latest = getLatestGivenBefore(referenceDate);
     if (!latest) return { side: ROTATION[0][0], site: ROTATION[0][1] };
     const index = ROTATION.findIndex(([side, site]) => side === latest.side && site === latest.site);
-    const next = ROTATION[(index + 1 + ROTATION.length) % ROTATION.length];
+    const safeIndex = index >= 0 ? index : -1;
+    const next = ROTATION[(safeIndex + 1) % ROTATION.length];
     return { side: next[0], site: next[1] };
+  }
+
+  function dateTimeFromEntry(entry) {
+    if (!entry?.date || !entry?.time || !isValidIsoDate(entry.date) || !isValidTime(entry.time)) return null;
+    const [year, month, day] = entry.date.split('-').map(Number);
+    const [hour, minute] = entry.time.split(':').map(Number);
+    return new Date(year, month - 1, day, hour, minute, 0, 0);
   }
 
   function selectCalendarDate(iso) {
@@ -656,8 +933,9 @@
     if (!entry) return;
     if (!window.confirm(`Usunąć wpis z ${formatDateShort(entry.date)}?`)) return;
     data.entries = data.entries.filter((item) => item.id !== id);
-    persistData();
+    if (!persistData()) return;
     if (closeDialogAfter) closeEntryDialog();
+    resetQuickDraftForToday();
     renderAll();
     showToast('Wpis został usunięty.', 'success');
   }
@@ -669,14 +947,16 @@
       return;
     }
     data.settings.defaultDose = dose;
-    data.settings.unit = el['settings-unit'].value;
-    data.settings.defaultTime = el['settings-time'].value || '20:00';
+    data.settings.unit = ALLOWED_UNITS.has(el['settings-unit'].value) ? el['settings-unit'].value : 'mg';
+    data.settings.defaultTime = isValidTime(el['settings-time'].value) ? el['settings-time'].value : '20:00';
     data.settings.voiceFeedback = el['voice-feedback-toggle'].checked;
     data.settings.voiceConfirm = el['voice-confirm-toggle'].checked;
-    persistData();
-    quickDraft = createDefaultDraft();
+    if (!persistData()) return;
+    if (!quickDraftTouched && !quickDraft.id) resetQuickDraftForToday();
     renderAll();
-    showToast('Ustawienia zostały zapisane.', 'success');
+    showToast(quickDraftTouched
+      ? 'Ustawienia zostały zapisane. Przygotowany wpis pozostał bez zmian.'
+      : 'Ustawienia zostały zapisane.', 'success');
   }
 
   async function saveReminderSettings() {
@@ -691,8 +971,8 @@
       }
     }
     data.settings.reminderEnabled = enabled;
-    data.settings.reminderTime = time;
-    persistData();
+    data.settings.reminderTime = isValidTime(time) ? time : '21:00';
+    if (!persistData()) return;
     await registerPeriodicReminder();
     checkReminderDue();
     renderSettings();
@@ -766,9 +1046,161 @@
   }
 
   function exportWord() {
-    const html = '﻿' + reportDocumentHtml({ forWord: true });
-    downloadFile(`dzienniczek-raport-${localDateISO()}.doc`, html, 'application/msword;charset=utf-8');
-    showToast('Pobrano raport Word.', 'success');
+    try {
+      const blob = createDocxBlob();
+      downloadBlob(`dzienniczek-raport-${localDateISO()}.docx`, blob);
+      showToast('Pobrano prawidłowy dokument Word .docx.', 'success');
+    } catch (error) {
+      console.error('Nie udało się utworzyć DOCX:', error);
+      showToast('Nie udało się utworzyć dokumentu Word.', 'error');
+    }
+  }
+
+  function createDocxBlob() {
+    const files = [
+      ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+          <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+          <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+          <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+        </Types>`],
+      ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+          <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+          <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+        </Relationships>`],
+      ['word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+        </Relationships>`],
+      ['word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/><w:lang w:val="pl-PL"/></w:rPr></w:style>
+        </w:styles>`],
+      ['word/document.xml', buildDocxDocumentXml()],
+      ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <dc:title>Dzienniczek hormonu wzrostu</dc:title><dc:creator>Dzienniczek hormonu wzrostu PWA</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+        </cp:coreProperties>`],
+      ['docProps/app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Dzienniczek hormonu wzrostu PWA</Application></Properties>`]
+    ];
+    return new Blob([buildStoredZip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  }
+
+  function buildDocxDocumentXml() {
+    const entries = getEntriesSorted();
+    const rows = [
+      ['Data', 'Godzina', 'Dawka', 'Miejsce', 'Status', 'Uwagi'],
+      ...entries.map((entry) => [
+        formatDateShort(entry.date),
+        entry.time,
+        entry.status === 'given' ? `${formatDose(entry.dose)} ${entry.unit}` : '—',
+        entry.status === 'given' ? formatPlace(entry.side, entry.site) : '—',
+        entry.status === 'given' ? 'Podano' : 'Pominięto',
+        entry.note || '—'
+      ])
+    ];
+    const tableRows = rows.map((row, rowIndex) => `<w:tr>${row.map((cell) => docxCell(cell, rowIndex === 0)).join('')}</w:tr>`).join('');
+    const generated = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:body>
+          ${docxParagraph('Dzienniczek hormonu wzrostu', true, 32)}
+          ${docxParagraph(`Raport wygenerowano: ${generated}`, false, 18)}
+          ${docxParagraph(`Liczba wpisów: ${entries.length}. Podano: ${entries.filter((entry) => entry.status === 'given').length}. Pominięto: ${entries.filter((entry) => entry.status === 'skipped').length}.`, false, 20)}
+          <w:tbl>
+            <w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="B7C9D6"/><w:left w:val="single" w:sz="4" w:color="B7C9D6"/><w:bottom w:val="single" w:sz="4" w:color="B7C9D6"/><w:right w:val="single" w:sz="4" w:color="B7C9D6"/><w:insideH w:val="single" w:sz="4" w:color="D8E3EA"/><w:insideV w:val="single" w:sz="4" w:color="D8E3EA"/></w:tblBorders></w:tblPr>
+            ${tableRows || `<w:tr>${docxCell('Brak wpisów.', false)}</w:tr>`}
+          </w:tbl>
+          ${docxParagraph('Aplikacja nie dobiera dawki i nie zastępuje zaleceń lekarza.', false, 18)}
+          <w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr>
+        </w:body>
+      </w:document>`;
+  }
+
+  function docxParagraph(text, bold = false, size = 20) {
+    return `<w:p><w:r><w:rPr>${bold ? '<w:b/>' : ''}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+  }
+
+  function docxCell(text, bold = false) {
+    return `<w:tc><w:tcPr><w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tcMar></w:tcPr>${docxParagraph(String(text), bold, 18)}</w:tc>`;
+  }
+
+  function escapeXml(value) {
+    return String(value ?? '').replace(/[<>&"']/g, (character) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[character]));
+  }
+
+  function buildStoredZip(files) {
+    const encoder = new TextEncoder();
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach(([name, content]) => {
+      const nameBytes = encoder.encode(name);
+      const dataBytes = typeof content === 'string' ? encoder.encode(content) : content;
+      const crc = crc32(dataBytes);
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      const localView = new DataView(localHeader.buffer);
+      localView.setUint32(0, 0x04034b50, true);
+      localView.setUint16(4, 20, true);
+      localView.setUint16(6, 0x0800, true);
+      localView.setUint16(8, 0, true);
+      localView.setUint32(14, crc, true);
+      localView.setUint32(18, dataBytes.length, true);
+      localView.setUint32(22, dataBytes.length, true);
+      localView.setUint16(26, nameBytes.length, true);
+      localHeader.set(nameBytes, 30);
+      localParts.push(localHeader, dataBytes);
+
+      const centralHeader = new Uint8Array(46 + nameBytes.length);
+      const centralView = new DataView(centralHeader.buffer);
+      centralView.setUint32(0, 0x02014b50, true);
+      centralView.setUint16(4, 20, true);
+      centralView.setUint16(6, 20, true);
+      centralView.setUint16(8, 0x0800, true);
+      centralView.setUint16(10, 0, true);
+      centralView.setUint32(16, crc, true);
+      centralView.setUint32(20, dataBytes.length, true);
+      centralView.setUint32(24, dataBytes.length, true);
+      centralView.setUint16(28, nameBytes.length, true);
+      centralView.setUint32(42, offset, true);
+      centralHeader.set(nameBytes, 46);
+      centralParts.push(centralHeader);
+      offset += localHeader.length + dataBytes.length;
+    });
+
+    const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+    const end = new Uint8Array(22);
+    const endView = new DataView(end.buffer);
+    endView.setUint32(0, 0x06054b50, true);
+    endView.setUint16(8, files.length, true);
+    endView.setUint16(10, files.length, true);
+    endView.setUint32(12, centralSize, true);
+    endView.setUint32(16, offset, true);
+    return concatUint8Arrays([...localParts, ...centralParts, end]);
+  }
+
+  function concatUint8Arrays(parts) {
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    const result = new Uint8Array(total);
+    let offset = 0;
+    parts.forEach((part) => { result.set(part, offset); offset += part.length; });
+    return result;
+  }
+
+  function crc32(bytes) {
+    let crc = 0xffffffff;
+    for (const byte of bytes) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+    return (crc ^ 0xffffffff) >>> 0;
   }
 
   function exportJson() {
@@ -797,25 +1229,37 @@
     event.target.value = '';
     if (!file) return;
     try {
+      if (file.size > 10 * 1024 * 1024) throw new Error('Plik jest zbyt duży.');
       const text = await file.text();
       const parsed = JSON.parse(text);
       const imported = parsed.data || parsed;
       if (!imported || !Array.isArray(imported.entries)) throw new Error('Nieprawidłowa struktura pliku.');
-      const validEntries = imported.entries.filter(isValidEntry);
-      if (!window.confirm(`Import zawiera ${validEntries.length} ${plural(validEntries.length, 'wpis', 'wpisy', 'wpisów')}. Zastąpić obecne dane?`)) return;
+      const sanitizedEntries = imported.entries.map(sanitizeEntry).filter(Boolean);
+      if (sanitizedEntries.length !== imported.entries.length) {
+        throw new Error('Plik zawiera nieprawidłowe lub niekompletne wpisy.');
+      }
+      const unique = keepOneEntryPerDate(sanitizedEntries);
+      if (unique.removedDuplicates > 0) {
+        throw new Error('Plik zawiera więcej niż jeden wpis dla tego samego dnia. Usuń duplikaty przed importem.');
+      }
+      if (!window.confirm(`Import zawiera ${unique.entries.length} ${plural(unique.entries.length, 'wpis', 'wpisy', 'wpisów')}. Zastąpić obecne dane?`)) return;
+      const previousData = data;
       data = {
-        version: 2,
-        settings: { ...defaultData.settings, ...(imported.settings || {}) },
-        meta: { ...defaultData.meta, ...(imported.meta || {}), onboardingCompleted: true },
-        entries: validEntries
+        version: 3,
+        settings: sanitizeSettings(imported.settings),
+        meta: { ...sanitizeMeta(imported.meta), onboardingCompleted: true },
+        entries: unique.entries
       };
-      persistData();
-      quickDraft = createDefaultDraft();
+      if (!persistData()) {
+        data = previousData;
+        return;
+      }
+      resetQuickDraftForToday();
       renderAll();
       showToast('Kopia została zaimportowana.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Nie udało się zaimportować pliku JSON.', 'error');
+      showToast(`Nie udało się zaimportować pliku JSON. ${error.message || ''}`.trim(), 'error', 7000);
     }
   }
 
@@ -825,10 +1269,13 @@
       return;
     }
     if (!window.confirm('Usunąć wszystkie wpisy? Tej operacji nie można cofnąć.')) return;
+    const previousEntries = data.entries;
     data.entries = [];
-    persistData();
-    quickDraft = createDefaultDraft();
-    lastRecognizedText = '';
+    if (!persistData()) {
+      data.entries = previousEntries;
+      return;
+    }
+    resetQuickDraftForToday();
     renderAll();
     showToast('Wszystkie wpisy zostały usunięte.', 'success');
   }
@@ -845,7 +1292,7 @@
 
   function finishPermissionsOnboarding() {
     data.meta.onboardingCompleted = true;
-    persistData();
+    if (!persistData()) return;
     if (el['permissions-dialog'].open) el['permissions-dialog'].close();
     scheduleDailyReminder();
     showToast('Ustawienia zgód zostały zapisane.', 'success');
@@ -976,8 +1423,7 @@
     else new Notification(title, options);
     if (!test) {
       data.meta.lastReminderDate = localDateISO();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      syncReminderStateWithServiceWorker();
+      persistData({ notifyError: false });
     }
     return true;
   }
@@ -1112,10 +1558,9 @@
     lastRecognizedText = transcript;
 
     if (/\b(anuluj|nie zapisuj|wyczysc)\b/.test(normalized)) {
-      quickDraft = createDefaultDraft();
-      lastRecognizedText = '';
+      resetQuickDraftForToday();
       renderToday();
-      showToast('Anulowano przygotowany wpis.');
+      showToast('Anulowano przygotowane zmiany.');
       speakIfEnabled('Anulowano.');
       return;
     }
@@ -1141,16 +1586,23 @@
       return;
     }
     if (/\b(dzisiaj|strona glowna)\b/.test(normalized) && !containsInjectionDetails(normalized)) {
+      resetQuickDraftForToday();
       switchView('today');
       return;
     }
     if (/\b(popraw|edytuj|wpisz recznie)\b/.test(normalized) && !containsInjectionDetails(normalized)) {
-      openEntryDialog(null, quickDraft);
+      openEntryDialog(quickDraft.id || null, quickDraft);
       return;
     }
 
     const parsed = parseVoiceEntry(normalized);
-    quickDraft = { ...quickDraft, ...parsed };
+    if (!Object.keys(parsed).length) {
+      showToast('Nie rozpoznano daty, dawki ani miejsca wkłucia.', 'error');
+      speakIfEnabled('Nie rozpoznano polecenia.');
+      return;
+    }
+    applyVoiceEntryToDraft(parsed);
+    quickDraftTouched = true;
     renderToday();
 
     if (quickDraft.status === 'skipped') {
@@ -1163,7 +1615,7 @@
 
     if (!quickDraft.side || !quickDraft.site) {
       const missing = !quickDraft.side && !quickDraft.site ? 'stronę i miejsce' : (!quickDraft.side ? 'stronę' : 'miejsce');
-      const message = `Rozpoznano częściowo. Podaj jeszcze ${missing}.`;
+      const message = `Rozpoznano częściowo. Data wpisu: ${formatDateSpeech(quickDraft.date)}. Podaj jeszcze ${missing}.`;
       showToast(message, 'error');
       speakIfEnabled(message);
       return;
@@ -1175,13 +1627,41 @@
     if (!data.settings.voiceConfirm) saveQuickDraft();
   }
 
+  function applyVoiceEntryToDraft(parsed) {
+    let base = quickDraft;
+    if (parsed.date && parsed.date !== quickDraft.date) {
+      const existing = getEntryForDate(parsed.date);
+      base = existing
+        ? { ...existing }
+        : createDefaultDraft({ date: parsed.date, time: parsed.time || localTime() });
+    }
+    quickDraft = { ...base, ...parsed };
+
+    if (parsed.status === 'skipped') {
+      quickDraft.dose = '';
+      quickDraft.unit = '';
+      quickDraft.side = '';
+      quickDraft.site = '';
+      return;
+    }
+
+    if (parsed.status === 'given') {
+      quickDraft.status = 'given';
+      if (!quickDraft.dose) quickDraft.dose = data.settings.defaultDose;
+      if (!quickDraft.unit) quickDraft.unit = data.settings.unit;
+    }
+  }
+
   function parseVoiceEntry(normalized) {
     const now = new Date();
-    const result = {
-      date: parseDateFromSpeech(normalized, now),
-      time: parseTimeFromSpeech(normalized) || localTime(now),
-      status: /\b(pomin|pomini|nie podano|bez dawki)\w*/.test(normalized) ? 'skipped' : 'given'
-    };
+    const result = {};
+    const date = parseDateFromSpeech(normalized, now);
+    const time = parseTimeFromSpeech(normalized);
+    if (date) result.date = date;
+    if (time) result.time = time;
+
+    const skipped = /\b(pomin|pomini|nie podano|bez dawki)\w*/.test(normalized);
+    if (skipped) result.status = 'skipped';
 
     if (/\blew\w*/.test(normalized)) result.side = 'lewa';
     else if (/\bpraw\w*/.test(normalized)) result.side = 'prawa';
@@ -1194,6 +1674,7 @@
 
     const dose = parseDoseFromSpeech(normalized);
     if (dose) result.dose = dose;
+    if (!skipped && (result.side || result.site || result.dose)) result.status = 'given';
     return result;
   }
 
@@ -1223,14 +1704,14 @@
       const year = words[3] ? Number(words[3]) : now.getFullYear();
       if (isValidDateParts(year, month, day)) return datePartsToISO(year, month, day);
     }
-    return localDateISO(now);
+    return '';
   }
 
   function parseTimeFromSpeech(text) {
-    const match = text.match(/(?:godzina|godzine|\bo)\s+(\d{1,2})(?::|\s)(\d{2})\b/);
+    const match = text.match(/(?:godzina|godzine|\bo)\s+(\d{1,2})(?:(?::|\s)(\d{2}))?\b/);
     if (!match) return '';
     const hour = Number(match[1]);
-    const minute = Number(match[2]);
+    const minute = match[2] ? Number(match[2]) : 0;
     if (hour > 23 || minute > 59) return '';
     return `${pad(hour)}:${pad(minute)}`;
   }
@@ -1293,7 +1774,7 @@
       }
       if (key === 'n') {
         event.preventDefault();
-        openEntryDialog();
+        openEntryForDate(localDateISO());
         return;
       }
       if (key === 'p') {
@@ -1348,7 +1829,7 @@
       const version = await response.json();
       el['version-label'].textContent = `Wersja ${version.version}`;
     } catch (error) {
-      el['version-label'].textContent = 'Wersja 1.1';
+      el['version-label'].textContent = 'Wersja 1.2';
     }
   }
 
@@ -1373,7 +1854,7 @@
       const workerState = await readReminderStateFromServiceWorker();
       if (workerState?.lastReminderDate && workerState.lastReminderDate > (data.meta.lastReminderDate || '')) {
         data.meta.lastReminderDate = workerState.lastReminderDate;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        persistData({ notifyError: false });
       }
       await syncReminderStateWithServiceWorker();
       await registerPeriodicReminder();
@@ -1513,7 +1994,10 @@
   }
 
   function downloadFile(filename, content, type) {
-    const blob = new Blob([content], { type });
+    downloadBlob(filename, new Blob([content], { type }));
+  }
+
+  function downloadBlob(filename, blob) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1521,15 +2005,15 @@
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function showToast(message, type = '') {
+  function showToast(message, type = '', duration = 4200) {
     const toast = document.createElement('div');
     toast.className = `toast${type ? ` toast--${type}` : ''}`;
     toast.textContent = message;
     el['toast-region'].appendChild(toast);
-    window.setTimeout(() => toast.remove(), 4200);
+    window.setTimeout(() => toast.remove(), duration);
   }
 
   function announce(message) {

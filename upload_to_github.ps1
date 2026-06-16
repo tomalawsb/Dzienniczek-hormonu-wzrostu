@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoUrl = "https://github.com/tomalawsb/Dzienniczek-hormonu-wzrostu.git"
 $GitUserName = "Tomasz Wolak"
-$GitUserEmail = "wolak82@gmail.com"
+$GitUserEmail = "195302343+tomalawsb@users.noreply.github.com"
 
 $ProjectPath = $PSScriptRoot
 $TempRoot = Join-Path $env:TEMP "dzienniczek_hormonu_wzrostu_git_upload"
@@ -45,6 +45,8 @@ $RequiredFiles = @(
     "icon-192.png",
     "icon-512.png",
     "README.md",
+    "tests\validate_project.py",
+    "tests\logic_test.mjs",
     "upload_to_github_android.sh",
     "URUCHOMIENIE_NA_ANDROIDZIE.txt",
     ".github\workflows\deploy-pages.yml"
@@ -71,6 +73,24 @@ $DefaultCommitMessage = "Dzienniczek hormonu wzrostu $AppVersion - aktualizacja"
 Info "Wersja programu: $AppVersion"
 Info "Opis commita: $DefaultCommitMessage"
 
+
+Info "Sprawdzam projekt przed wysłaniem..."
+$PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+if ($PythonCommand) {
+    & python (Join-Path $ProjectPath "tests\validate_project.py") $ProjectPath
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage "Kontrola projektu wykryła błędy." }
+} else {
+    Warn "Python nie jest dostępny. Pełną kontrolę wykona GitHub Actions po wysłaniu."
+}
+$NodeCommand = Get-Command node -ErrorAction SilentlyContinue
+if ($NodeCommand) {
+    & node --check (Join-Path $ProjectPath "app.js")
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage "Błąd składni w app.js." }
+    & node --check (Join-Path $ProjectPath "service-worker.js")
+    if ($LASTEXITCODE -ne 0) { Stop-WithMessage "Błąd składni w service-worker.js." }
+}
+Ok "Kontrola projektu zakończona."
+
 Info "Czyszczę katalog tymczasowy..."
 if (Test-Path $TempRoot) {
     Remove-Item $TempRoot -Recurse -Force
@@ -94,7 +114,7 @@ Info "Kopiuję aktualny projekt do repozytorium..."
 $RoboArgs = @(
     $ProjectPath,
     $RepoWorkPath,
-    "/MIR",
+    "/E",
     "/XD", ".git", "node_modules", ".idea", ".vscode",
     "/XF", "*.zip", "*.sha256", ".DS_Store", "Thumbs.db"
 )

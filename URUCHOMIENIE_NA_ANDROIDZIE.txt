@@ -1,35 +1,43 @@
 WYSYŁANIE PROJEKTU NA GITHUB Z ANDROIDA
 
 Android sam nie uruchamia plików .sh po zwykłym dotknięciu. Potrzebna jest aplikacja Termux.
-Najbezpieczniej zainstalować aktualny Termux z F-Droid lub oficjalnego repozytorium Termux na GitHubie.
 
 PIERWSZE URUCHOMIENIE
 
-1. Rozpakuj ZIP z projektem, najlepiej do katalogu Download.
+1. Rozpakuj ZIP z projektem, najlepiej do katalogu Download albo własnego katalogu Tt.
 2. Otwórz Termux.
 3. Wpisz:
 
    termux-setup-storage
 
-4. Zatwierdź Androidowi dostęp do plików.
+4. Zatwierdź dostęp do plików.
 5. Przejdź do rozpakowanego folderu. Przykład:
 
-   cd ~/storage/downloads/Dzienniczek_hormonu_wzrostu_PWA_1.1
+   cd ~/storage/downloads/Dzienniczek_hormonu_wzrostu_PWA_1.2
 
 6. Uruchom:
 
    bash upload_to_github_android.sh
 
 Skrypt sam:
-- zainstaluje Git, GitHub CLI i rsync,
-- przy pierwszym użyciu poprosi o logowanie do GitHuba przez przeglądarkę,
+- zainstaluje Python, Git, GitHub CLI i rsync,
+- sprawdzi kompletność projektu,
+- przy pierwszym użyciu poprosi o logowanie do GitHuba,
 - pobierze repozytorium,
-- skopiuje cały projekt,
+- skopiuje projekt bez usuwania dodatkowych plików z repozytorium,
 - utworzy commit z numerem wersji,
 - wyśle zmiany na gałąź main.
 
-PRZY KOLEJNYCH AKTUALIZACJACH
+LOGOWANIE DO GITHUBA
 
-Wystarczy ponownie uruchomić w folderze projektu:
+Termux wyświetli jednorazowy kod i otworzy stronę:
+
+   https://github.com/login/device
+
+Wpisz kod, zatwierdź dostęp dla GitHub CLI i wróć do Termuxa. Przy kolejnych wysyłkach logowanie zwykle nie będzie wymagane.
+
+KOLEJNE AKTUALIZACJE
+
+W folderze nowej wersji uruchom ponownie:
 
    bash upload_to_github_android.sh

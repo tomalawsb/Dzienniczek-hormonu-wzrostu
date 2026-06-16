@@ -225,7 +225,7 @@ h2 { margin: 0; font-size: clamp(1.15rem, 1.5vw, 1.45rem); line-height: 1.2; }
 
 .summary-chips {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 20px;
 }
@@ -811,7 +811,8 @@ kbd { display: inline-block; min-width: 24px; padding: 3px 6px; border: 1px soli
   .injection-card { padding: 19px 16px; }
   .card-heading-row { align-items: flex-start; }
   .status-badge { font-size: .68rem; }
-  .summary-chips { gap: 8px; }
+  .summary-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .summary-chip--date { grid-column: 1 / -1; }
   .summary-chip { min-height: 46px; padding: 8px; font-size: .84rem; }
   .voice-button { width: 168px; height: 168px; }
   .place-field { grid-template-columns: auto minmax(0, 1fr) auto; }
