@@ -43,7 +43,7 @@
   ];
 
   const defaultData = {
-    version: 3,
+    version: 4,
     settings: {
       defaultDose: '1,0',
       unit: 'mg',
@@ -133,6 +133,10 @@
       button.addEventListener('click', () => switchView(button.dataset.view));
     });
 
+    document.querySelectorAll('[data-go-home]').forEach((button) => {
+      button.addEventListener('click', () => switchView('today'));
+    });
+
     document.querySelectorAll('[data-open-entry]').forEach((button) => {
       button.addEventListener('click', () => openEntryForDate(localDateISO()));
     });
@@ -144,7 +148,7 @@
     el['dose-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-dose'));
     el['time-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-time'));
     el['recommended-save-button'].addEventListener('click', saveRecommendedDraft);
-    el['recommended-manual-button'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
+    el['recommended-manual-button'].addEventListener('click', openAmpouleSettings);
     el['ampoule-start-main-button'].addEventListener('click', setAmpouleStartToday);
     el['voice-button'].addEventListener('click', toggleVoiceRecognition);
     el['save-button'].addEventListener('click', saveQuickDraft);
@@ -258,7 +262,7 @@
     return {
       removedDuplicates,
       data: {
-        version: 3,
+        version: 4,
         settings: sanitizeSettings(parsed?.settings),
         meta: sanitizeMeta(parsed?.meta),
         entries
@@ -539,28 +543,31 @@
 
     el['recommended-save-button'].classList.remove('is-hidden');
     el['recommended-save-button'].disabled = false;
-    el['recommended-manual-button'].textContent = 'Zmień ręcznie';
+    el['recommended-manual-button'].classList.remove('is-hidden');
+    el['recommended-manual-button'].textContent = 'Ustawienia ampułki';
     el['ampoule-start-main-button'].classList.add('is-hidden');
 
     if (todayEntry?.status === 'given') {
       el['main-action-heading'].textContent = 'Dzisiejszy zastrzyk jest już zapisany';
       el['main-action-text'].textContent = `${formatDateShort(todayEntry.date)}, ${todayEntry.time}: ${formatPlace(todayEntry.side, todayEntry.site)}, ${formatDose(todayEntry.dose)} ${todayEntry.unit}.`;
       el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
-      el['recommended-save-button'].disabled = false;
-      el['recommended-manual-button'].textContent = 'Dodaj ręcznie inny dzień';
     } else if (todayEntry?.status === 'skipped') {
       el['main-action-heading'].textContent = 'Dzisiaj dawka jest oznaczona jako pominięta';
-      el['main-action-text'].textContent = 'Możesz zostawić ten status albo wejść w edycję, jeżeli to była pomyłka.';
+      el['main-action-text'].textContent = 'Jeżeli to pomyłka, otwórz edycję i popraw dzisiejszy wpis.';
       el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
-      el['recommended-manual-button'].textContent = 'Dodaj ręcznie inny dzień';
     } else {
       el['main-action-heading'].textContent = `Podaj dzisiaj: ${suggestedPlace}`;
-      el['main-action-text'].textContent = `Program sam wybrał kolejne miejsce z rotacji. Dawka: ${doseText}, godzina: ${quickDraft.time}.`;
+      el['main-action-text'].textContent = `Program sam wybrał kolejne miejsce z rotacji. Dawka: ${doseText}, godzina: ${quickDraft.time}. Ręczne zmiany są niżej w sekcji „Dzisiejsze podanie”.`;
       el['recommended-save-button'].textContent = ready ? 'Zapisz przygotowane podanie' : 'Użyj propozycji i zapisz';
     }
 
     if (!ampouleInfo.configured && ampouleInfo.reason === 'start') {
+      el['recommended-manual-button'].textContent = 'Ustaw datę ampułki';
       el['ampoule-start-main-button'].classList.remove('is-hidden');
+    } else if (!ampouleInfo.configured && ampouleInfo.reason === 'dose') {
+      el['recommended-manual-button'].textContent = 'Ustaw dawkę ampułki';
+    } else if (ampouleInfo.todayIsLast) {
+      el['recommended-manual-button'].textContent = 'Zapisz wymianę ampułki';
     }
 
     const ampouleMessage = ampouleSummary(ampouleInfo);
@@ -861,12 +868,23 @@
     saveQuickDraft();
   }
 
+  function openAmpouleSettings() {
+    switchView('more');
+    window.setTimeout(() => {
+      const field = el['ampoule-start-date'];
+      if (!field) return;
+      field.focus({ preventScroll: false });
+      try { field.showPicker?.(); } catch {}
+      field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 60);
+  }
+
   function setAmpouleStartToday() {
     data.settings.ampouleStartDate = localDateISO();
     if (el['ampoule-start-date']) el['ampoule-start-date'].value = data.settings.ampouleStartDate;
     if (!persistData()) return;
     renderAll();
-    showToast('Ustawiono dzisiaj jako początek ampułki.', 'success');
+    showToast('Ustawiono dzisiejszy dzień jako start aktualnej ampułki.', 'success');
   }
 
   function saveQuickDraft() {
@@ -990,7 +1008,7 @@
         level: 'warning',
         short: 'Brak daty startu',
         title: 'Ampułka: ustaw start',
-        text: 'W ustawieniach wybierz dzień rozpoczęcia pierwszej ampułki albo ustaw dzisiaj jako początek.'
+        text: 'W ustawieniach wybierz dzień rozpoczęcia aktualnej ampułki albo ustaw dzisiaj jako dzień wymiany.'
       };
     }
     if (!info.configured && info.reason === 'dose') {
@@ -998,7 +1016,7 @@
         level: 'warning',
         short: 'Brak dawki w ml',
         title: 'Ampułka: brak dawki w ml',
-        text: 'Aby liczyć koniec ampułki 10 ml, ustaw dawkę zużywaną z ampułki w ml albo wybierz jednostkę ml.'
+        text: 'Aby liczyć koniec ampułki 10 ml, ustaw ile ml schodzi na jedno podanie albo wybierz jednostkę ml.'
       };
     }
     if (info.todayIsLast) {
@@ -1007,14 +1025,14 @@
         level: 'danger',
         short: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
         title: 'Ampułka: ostatni zastrzyk',
-        text: `${prefix} ostatnim zastrzykiem z tej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
+        text: `${prefix} ostatnim zastrzykiem z tej ampułki. Po podaniu ustaw w ustawieniach dzień rozpoczęcia nowej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
       };
     }
     return {
       level: 'ok',
       short: `Ampułka ${info.ampouleNumber}: zostanie ${formatMl(info.remainingAfterToday)} ml`,
       title: `Ampułka ${info.ampouleNumber}`,
-      text: `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml, czyli około ${info.approximateDosesLeftAfterToday} kolejnych pełnych podań.`
+      text: `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml, czyli około ${info.approximateDosesLeftAfterToday} kolejnych pełnych podań. W razie wcześniejszej wymiany zmień datę startu aktualnej ampułki w ustawieniach.`
     };
   }
 
@@ -1132,11 +1150,11 @@
     const ampouleDoseMl = normalizeOptionalPositiveDecimal(el['ampoule-dose-ml'].value);
     const ampouleStartDate = el['ampoule-start-date'].value;
     if (ampouleStartDate && !isValidIsoDate(ampouleStartDate)) {
-      showToast('Podaj prawidłową datę rozpoczęcia ampułki.', 'error');
+      showToast('Podaj prawidłową datę rozpoczęcia aktualnej ampułki.', 'error');
       return;
     }
     if (el['ampoule-dose-ml'].value.trim() && !ampouleDoseMl) {
-      showToast('Podaj prawidłową dawkę z ampułki w ml.', 'error');
+      showToast('Podaj prawidłową wartość ml na jedno podanie.', 'error');
       return;
     }
 
@@ -1442,7 +1460,7 @@
       if (!window.confirm(`Import zawiera ${unique.entries.length} ${plural(unique.entries.length, 'wpis', 'wpisy', 'wpisów')}. Zastąpić obecne dane?`)) return;
       const previousData = data;
       data = {
-        version: 3,
+        version: 4,
         settings: sanitizeSettings(imported.settings),
         meta: { ...sanitizeMeta(imported.meta), onboardingCompleted: true },
         entries: unique.entries

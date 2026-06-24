@@ -1,0 +1,10 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.4 - 2406262035
+
+Najważniejsze poprawki:
+- uproszczony ekran główny: ręczne opcje przeniesione niżej, a karta „Co teraz zrobić” skupia się na jednym głównym działaniu,
+- przycisk w karcie głównej prowadzi teraz do ustawień ampułki zamiast dublować ręczne dodawanie wpisu,
+- dodane szybkie przyciski „← Dzisiaj” w Kalendarzu, Historii i Ustawieniach,
+- w ustawieniach ampułki opis uproszczony i doprecyzowany: ustawiasz datę rozpoczęcia aktualnej ampułki / ostatniej wymiany,
+- pole daty ampułki jest wyraźniejsze i opisane, że otwiera kalendarz telefonu,
+- poprawione komunikaty licznika ampułki i ostrzeżenia o końcu ampułki,
+- ukryty górny przycisk szybkiego dodawania na telefonie, żeby nie dublować funkcji.

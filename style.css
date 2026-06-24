@@ -181,10 +181,10 @@ main {
 .action-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
+  gap: 14px;
   align-items: center;
-  margin-bottom: 22px;
-  padding: clamp(20px, 3vw, 30px);
+  margin-bottom: 18px;
+  padding: clamp(18px, 2.7vw, 26px);
   border-color: rgba(22, 184, 165, .28);
   background: linear-gradient(135deg, rgba(230, 248, 244, .95), rgba(255, 255, 255, .98));
 }
@@ -236,6 +236,29 @@ h2 { margin: 0; font-size: clamp(1.15rem, 1.5vw, 1.45rem); line-height: 1.2; }
 }
 .card-heading-row, .section-heading-row, .page-heading, .calendar-toolbar, .dialog-header { justify-content: space-between; }
 .page-heading { margin-bottom: 22px; }
+.page-heading--split-mobile { align-items: center; }
+.page-heading-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.button--ghost {
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: #fff;
+}
+.button--ghost:hover { background: var(--surface-soft); }
+.settings-subsection {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+.settings-subsection__header {
+  display: grid;
+  gap: 4px;
+}
+.settings-subsection__header h3 { margin: 0; }
+.settings-hint {
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.45;
+}
 
 .status-badge {
   display: inline-flex;
@@ -833,6 +856,9 @@ kbd { display: inline-block; min-width: 24px; padding: 3px 6px; border: 1px soli
   .settings-grid { grid-template-columns: 1fr; }
   .settings-card--wide { grid-column: auto; }
   .history-filters { grid-template-columns: 1fr; }
+  .page-heading--split-mobile { align-items: flex-start; }
+  .page-heading-actions { width: 100%; }
+  .page-heading-actions .button { flex: 1 1 auto; }
   .toast-region { bottom: calc(var(--mobile-nav-height) + 18px); }
 }
 
@@ -852,6 +878,8 @@ kbd { display: inline-block; min-width: 24px; padding: 3px 6px; border: 1px soli
   .place-field strong { justify-self: start; }
   .primary-actions { grid-template-columns: 1fr; }
   .page-heading { align-items: flex-start; }
+  .page-heading-actions { width: 100%; }
+  .page-heading-actions .button { width: 100%; }
   .calendar-card, .day-details-card, .history-card, .settings-card { padding: 16px; }
   .calendar-day { min-height: 58px; padding: 6px; }
   .day-number { width: 23px; height: 23px; font-size: .75rem; }
