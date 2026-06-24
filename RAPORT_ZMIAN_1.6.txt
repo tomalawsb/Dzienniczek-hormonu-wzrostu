@@ -1,0 +1,11 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.6 - 2406262227
+
+Najważniejsze poprawki:
+- licznik ampułki nie odejmuje dawki, gdy dzisiejszy wpis ma status „Pominięto”,
+- kolejna ampułka zaczyna się automatycznie przy następnym podaniu po zakończeniu poprzedniej,
+- program pokazuje datę startu aktualnie liczonej ampułki,
+- raport PDF/Word/CSV sortuje wpisy od najstarszych do najnowszych,
+- tabela raportu ma nowe kolumny: Ampułka, Start ampułki, Pozostało po wpisie,
+- raport pokazuje zakres dat wpisów,
+- dokument Word ma taki sam układ tabeli jak raport PDF,
+- dodano testy zabezpieczające logikę pominiętej dawki, automatycznego startu nowej ampułki oraz kolejności wpisów w raporcie.

@@ -85,7 +85,7 @@
               <p id="main-action-text" class="muted">Proponowane miejsce wkłucia jest teraz najważniejszą informacją na ekranie.</p>
               <div id="ampoule-alert" class="ampoule-alert" role="status" aria-live="polite">
                 <strong id="ampoule-alert-title">Ampułka</strong>
-                <span id="ampoule-alert-text">W ustawieniach wybierz dzień rozpoczęcia aktualnej ampułki.</span>
+                <span id="ampoule-alert-text">W ustawieniach wybierz datę startu znanej ampułki bazowej.</span>
               </div>
             </div>
             <div class="action-card__actions">
@@ -340,16 +340,16 @@
               <div class="settings-subsection">
                 <div class="settings-subsection__header">
                   <h3>Ampułka</h3>
-                  <span class="settings-hint">Wybierz dzień rozpoczęcia aktualnej ampułki lub ostatniej wymiany.</span>
+                  <span class="settings-hint">Wybierz datę startu znanej ampułki bazowej.</span>
                 </div>
-                <p class="muted">Program liczy zużycie od ustawionej daty i od wpisanego numeru ampułki. Jeżeli aktualna ampułka to 13, wpisz numer 13 przy dacie jej startu.</p>
+                <p class="muted">Program liczy kolejne ampułki automatycznie od ustawionej daty i numeru. Jeżeli ampułka bazowa to 13, wpisz numer 13 przy dacie jej startu.</p>
                 <div class="form-grid form-grid--settings">
                   <label>
-                    <span>Data startu / ostatniej wymiany</span>
+                    <span>Data startu ampułki bazowej</span>
                     <input id="ampoule-start-date" type="date">
                   </label>
                   <label>
-                    <span>Numer ampułki w tym dniu</span>
+                    <span>Numer ampułki bazowej</span>
                     <input id="ampoule-start-number" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value="1">
                   </label>
                   <label>

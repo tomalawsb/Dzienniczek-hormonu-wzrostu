@@ -17,6 +17,8 @@ const hook = `
     createDefaultDraft,
     createDocxBlob,
     getAmpouleInfo,
+    buildAmpouleTimeline,
+    buildReportBody,
     ampouleNotificationText,
     localDateISO,
     setEntries: (entries) => { data.entries = entries; },
@@ -93,6 +95,44 @@ try {
   assert(ampoule.configured === true, 'Licznik ampułki nie został skonfigurowany.');
   assert(ampoule.todayIsLast === true, 'Nie wykryto ostatniego zastrzyku z ampułki.');
   assert(t.ampouleNotificationText(ampoule).includes('ostatni zastrzyk'), 'Powiadomienie nie zawiera ostrzeżenia o końcu ampułki.');
+
+
+
+  const todaySkipped = {
+    ...entry('ampoule-skipped-today', '2026-06-15T22:00:00.000Z'),
+    date: t.localDateISO(),
+    status: 'skipped',
+    dose: '',
+    unit: '',
+    side: '',
+    site: ''
+  };
+  t.setSettings({ defaultDose: '1,0', unit: 'ml', ampouleStartDate: dateShift(-1), ampouleStartNumber: 13, ampouleVolumeMl: '2', ampouleDoseMl: '' });
+  t.setEntries([
+    { ...entry('ampoule-yesterday', '2026-06-15T21:00:00.000Z'), date: dateShift(-1), unit: 'ml', dose: '1,0' },
+    todaySkipped
+  ]);
+  const skippedAmpoule = t.getAmpouleInfo();
+  assert(skippedAmpoule.todayEntryStatus === 'skipped', 'Nie wykryto pominiętej dawki dzisiaj.');
+  assert(skippedAmpoule.todayDoseMl === 0, 'Pominięta dawka błędnie zużyła ampułkę.');
+  assert(skippedAmpoule.remainingAfterToday === 1, 'Stan ampułki zmienił się po pominiętej dawce.');
+
+  t.setSettings({ defaultDose: '1,0', unit: 'ml', ampouleStartDate: dateShift(-2), ampouleStartNumber: 13, ampouleVolumeMl: '2', ampouleDoseMl: '' });
+  t.setEntries([
+    { ...entry('ampoule-start-a', '2026-06-15T21:00:00.000Z'), date: dateShift(-2), unit: 'ml', dose: '1,0' },
+    { ...entry('ampoule-start-b', '2026-06-15T21:00:00.000Z'), date: dateShift(-1), unit: 'ml', dose: '1,0' }
+  ]);
+  const autoStartAmpoule = t.getAmpouleInfo();
+  assert(autoStartAmpoule.todayStartsNewAmpoule === true, 'Nowa ampułka nie zaczęła się automatycznie przy kolejnym podaniu.');
+  assert(autoStartAmpoule.ampouleNumber === 14, 'Numer nowej ampułki nie zwiększył się automatycznie.');
+
+  t.setEntries([
+    { ...entry('report-newer', '2026-06-16T21:00:00.000Z'), date: '2026-06-16' },
+    { ...entry('report-older', '2026-06-14T21:00:00.000Z'), date: '2026-06-14' }
+  ]);
+  const report = t.buildReportBody();
+  assert(report.indexOf('14.06.2026') < report.indexOf('16.06.2026'), 'Raport nie sortuje wpisów od najstarszych do najnowszych.');
+  assert(report.includes('Start ampułki'), 'Raport nie zawiera kolumny startu ampułki.');
 
   t.setEntries([entry('entry-docx', '2026-06-15T21:00:00.000Z')]);
   const docx = new Uint8Array(await t.createDocxBlob().arrayBuffer());

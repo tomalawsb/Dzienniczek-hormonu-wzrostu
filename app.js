@@ -890,7 +890,7 @@
     if (el['ampoule-start-date']) el['ampoule-start-date'].value = data.settings.ampouleStartDate;
     if (!persistData()) return;
     renderAll();
-    showToast('Ustawiono dzisiejszy dzień jako start aktualnej ampułki.', 'success');
+    showToast('Ustawiono dzisiejszy dzień jako start ampułki bazowej.', 'success');
   }
 
   function saveQuickDraft() {
@@ -966,45 +966,44 @@
   }
 
   function getAmpouleInfo() {
-    const startDate = data.settings.ampouleStartDate || '';
-    const volumeMl = decimalToNumber(data.settings.ampouleVolumeMl) || decimalToNumber(DEFAULT_AMPOULE_VOLUME_ML);
-    const configuredDoseMl = getConfiguredAmpouleDoseMl();
     const today = localDateISO();
     const todayEntry = getEntryForDate(today);
+    const timeline = buildAmpouleTimeline({ includePlannedToday: todayEntry?.status !== 'skipped' });
 
-    if (!startDate || !isValidIsoDate(startDate)) {
-      return { configured: false, reason: 'start', volumeMl, doseMl: configuredDoseMl, startDate: '' };
-    }
-    if (!configuredDoseMl) {
-      return { configured: false, reason: 'dose', volumeMl, doseMl: 0, startDate };
+    if (!timeline.configured) {
+      return {
+        configured: false,
+        reason: timeline.reason,
+        volumeMl: timeline.volumeMl,
+        doseMl: timeline.doseMl,
+        startDate: timeline.startDate
+      };
     }
 
-    const usedBeforeToday = data.entries
-      .filter((entry) => entry.status === 'given' && entry.date >= startDate && entry.date < today)
-      .reduce((sum, entry) => sum + getEntryAmpouleDoseMl(entry, configuredDoseMl), 0);
-    const todayDoseMl = todayEntry?.status === 'given'
-      ? getEntryAmpouleDoseMl(todayEntry, configuredDoseMl)
-      : configuredDoseMl;
-    const usedInCurrentBefore = usedBeforeToday % volumeMl;
-    const remainingBeforeToday = volumeMl - usedInCurrentBefore;
-    const remainingAfterToday = Math.max(0, remainingBeforeToday - todayDoseMl);
-    const startNumber = normalizeAmpouleNumber(data.settings.ampouleStartNumber);
-    const ampouleNumber = startNumber + Math.floor(usedBeforeToday / volumeMl);
-    const todayIsLast = todayDoseMl > 0 && todayDoseMl >= remainingBeforeToday - 0.000001;
-    const approximateDosesLeftAfterToday = Math.floor((remainingAfterToday + 0.000001) / configuredDoseMl);
+    const todayRow = [...timeline.rows].reverse().find((row) => row.entry.date === today);
+    const latestRow = timeline.rows[timeline.rows.length - 1] || null;
+    const referenceRow = todayRow || latestRow;
+    const remainingBeforeToday = todayRow ? todayRow.remainingBefore : timeline.remainingMl;
+    const remainingAfterToday = todayRow ? todayRow.remainingAfter : timeline.remainingMl;
+    const todayDoseMl = todayRow ? todayRow.doseMl : 0;
+    const approximateDosesLeftAfterToday = Math.floor((remainingAfterToday + 0.000001) / timeline.doseMl);
 
     return {
       configured: true,
       reason: '',
-      startDate,
-      volumeMl,
-      doseMl: configuredDoseMl,
-      usedBeforeToday,
+      startDate: timeline.startDate,
+      volumeMl: timeline.volumeMl,
+      doseMl: timeline.doseMl,
+      usedBeforeToday: Math.max(0, timeline.volumeMl - remainingBeforeToday),
       remainingBeforeToday,
       remainingAfterToday,
-      ampouleNumber,
-      todayIsLast,
+      ampouleNumber: referenceRow?.ampouleNumber ?? timeline.ampouleNumber,
+      ampouleStartDate: referenceRow?.ampouleStartDate || timeline.ampouleStartDate,
+      nextAmpouleStartDate: todayRow?.nextAmpouleStartDate || timeline.nextAmpouleStartDate || '',
+      todayIsLast: Boolean(todayRow?.isLastDose),
+      todayStartsNewAmpoule: Boolean(todayRow?.startsNewAmpoule),
       todayEntryStatus: todayEntry?.status || '',
+      todayDoseMl,
       approximateDosesLeftAfterToday
     };
   }
@@ -1015,7 +1014,7 @@
         level: 'warning',
         short: 'Brak daty startu',
         title: 'Ampułka: ustaw start',
-        text: 'W ustawieniach wybierz dzień rozpoczęcia aktualnej ampułki albo ustaw dzisiaj jako dzień wymiany.'
+        text: 'W ustawieniach wybierz datę startu znanej ampułki bazowej. Kolejne ampułki program policzy automatycznie.'
       };
     }
     if (!info.configured && info.reason === 'dose') {
@@ -1032,20 +1031,29 @@
         level: 'danger',
         short: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
         title: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
-        text: `${prefix} ostatnim zastrzykiem z ampułki ${info.ampouleNumber}. Po podaniu ustaw w ustawieniach dzień rozpoczęcia nowej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
+        text: `${prefix} ostatnim zastrzykiem z ampułki ${info.ampouleNumber}. Następna ampułka zacznie się automatycznie przy kolejnym podaniu, planowo ${formatDateShort(info.nextAmpouleStartDate)}.`
+      };
+    }
+    if (info.todayStartsNewAmpoule) {
+      return {
+        level: 'ok',
+        short: `Ampułka ${info.ampouleNumber}: start dzisiaj`,
+        title: `Ampułka ${info.ampouleNumber}: nowa ampułka`,
+        text: `Ta ampułka zaczyna się dzisiaj automatycznie, bo poprzednia została zakończona. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml.`
       };
     }
     return {
       level: 'ok',
       short: `Ampułka ${info.ampouleNumber}: zostanie ${formatMl(info.remainingAfterToday)} ml`,
       title: `Ampułka ${info.ampouleNumber}`,
-      text: `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml, czyli około ${info.approximateDosesLeftAfterToday} kolejnych pełnych podań. W razie wcześniejszej wymiany zmień datę startu aktualnej ampułki w ustawieniach.`
+      text: `Start tej ampułki: ${formatDateShort(info.ampouleStartDate)}. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml, czyli około ${info.approximateDosesLeftAfterToday} kolejnych pełnych podań.`
     };
   }
 
   function ampouleNotificationText(info) {
     if (!info.configured) return '';
-    if (info.todayIsLast) return 'Dzisiaj jest ostatni zastrzyk z tej ampułki.';
+    if (info.todayIsLast) return `Dzisiaj jest ostatni zastrzyk z tej ampułki. Nowa ampułka zacznie się planowo ${formatDateShort(info.nextAmpouleStartDate)}.`;
+    if (info.todayStartsNewAmpoule) return `Dzisiaj zaczyna się ampułka ${info.ampouleNumber}.`;
     return `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml w ampułce.`;
   }
 
@@ -1057,6 +1065,92 @@
   function getEntryAmpouleDoseMl(entry, fallbackDoseMl) {
     if (entry?.unit === 'ml') return decimalToNumber(entry.dose) || fallbackDoseMl;
     return fallbackDoseMl;
+  }
+
+  function addDaysISO(iso, days) {
+    const date = parseISODate(iso);
+    date.setDate(date.getDate() + days);
+    return localDateISO(date);
+  }
+
+  function ampouleSortKey(entry) {
+    return `${entry.date}T${entry.time || '00:00'}`;
+  }
+
+  function buildAmpouleTimeline({ includePlannedToday = false } = {}) {
+    const startDate = data.settings.ampouleStartDate || '';
+    const volumeMl = decimalToNumber(data.settings.ampouleVolumeMl) || decimalToNumber(DEFAULT_AMPOULE_VOLUME_ML);
+    const configuredDoseMl = getConfiguredAmpouleDoseMl();
+
+    if (!startDate || !isValidIsoDate(startDate)) {
+      return { configured: false, reason: 'start', startDate: '', volumeMl, doseMl: configuredDoseMl, rows: [] };
+    }
+    if (!configuredDoseMl) {
+      return { configured: false, reason: 'dose', startDate, volumeMl, doseMl: 0, rows: [] };
+    }
+
+    const today = localDateISO();
+    const sourceEntries = getEntriesAscending().filter((entry) => entry.date >= startDate);
+    const hasTodayEntry = sourceEntries.some((entry) => entry.date === today);
+    const timelineEntries = includePlannedToday && !hasTodayEntry
+      ? [...sourceEntries, createDefaultDraft({ id: 'planned-today', date: today, time: data.settings.defaultTime, status: 'given' })]
+      : sourceEntries;
+
+    let ampouleNumber = normalizeAmpouleNumber(data.settings.ampouleStartNumber);
+    let ampouleStartDate = startDate;
+    let remainingMl = volumeMl;
+    let nextAmpouleStartDate = '';
+    const rows = [];
+
+    timelineEntries
+      .filter((entry) => entry.date >= startDate)
+      .sort((a, b) => ampouleSortKey(a).localeCompare(ampouleSortKey(b)))
+      .forEach((entry) => {
+        const isGiven = entry.status === 'given';
+        const doseMl = isGiven ? getEntryAmpouleDoseMl(entry, configuredDoseMl) : 0;
+        let startsNewAmpoule = false;
+
+        if (isGiven && remainingMl <= 0.000001) {
+          ampouleNumber += 1;
+          ampouleStartDate = entry.date;
+          remainingMl = volumeMl;
+          startsNewAmpoule = true;
+          nextAmpouleStartDate = '';
+        }
+
+        const remainingBefore = remainingMl;
+        const remainingAfter = isGiven ? Math.max(0, remainingBefore - doseMl) : remainingBefore;
+        const isLastDose = isGiven && doseMl > 0 && doseMl >= remainingBefore - 0.000001;
+        if (isLastDose) nextAmpouleStartDate = addDaysISO(entry.date, 1);
+
+        rows.push({
+          entry,
+          planned: entry.id === 'planned-today',
+          ampouleNumber,
+          ampouleStartDate,
+          doseMl,
+          remainingBefore,
+          remainingAfter,
+          startsNewAmpoule,
+          isLastDose,
+          nextAmpouleStartDate
+        });
+
+        remainingMl = remainingAfter;
+      });
+
+    return {
+      configured: true,
+      reason: '',
+      startDate,
+      volumeMl,
+      doseMl: configuredDoseMl,
+      rows,
+      ampouleNumber,
+      ampouleStartDate,
+      remainingMl,
+      nextAmpouleStartDate
+    };
   }
 
   function formatMl(value) {
@@ -1158,7 +1252,7 @@
     const ampouleDoseMl = normalizeOptionalPositiveDecimal(el['ampoule-dose-ml'].value);
     const ampouleStartDate = el['ampoule-start-date'].value;
     if (ampouleStartDate && !isValidIsoDate(ampouleStartDate)) {
-      showToast('Podaj prawidłową datę rozpoczęcia aktualnej ampułki.', 'error');
+      showToast('Podaj prawidłową datę startu ampułki bazowej.', 'error');
       return;
     }
     if (el['ampoule-dose-ml'].value.trim() && !ampouleDoseMl) {
@@ -1203,16 +1297,48 @@
     showToast(enabled ? `Przypomnienie ustawiono na ${time}.` : 'Przypomnienie zostało wyłączone.', 'success');
   }
 
+  function getAmpouleRowsByEntryId() {
+    const timeline = buildAmpouleTimeline({ includePlannedToday: false });
+    const rowsById = new Map();
+    if (timeline.configured) {
+      timeline.rows.forEach((row) => {
+        if (row.entry?.id) rowsById.set(row.entry.id, row);
+      });
+    }
+    return { timeline, rowsById };
+  }
+
+  function formatReportAmpouleCell(row) {
+    if (!row) return '—';
+    const suffixes = [];
+    if (row.startsNewAmpoule) suffixes.push('start');
+    if (row.isLastDose) suffixes.push('koniec');
+    return suffixes.length ? `${row.ampouleNumber} — ${suffixes.join(', ')}` : String(row.ampouleNumber);
+  }
+
+  function formatReportRemainingCell(row) {
+    if (!row) return '—';
+    if (row.entry.status !== 'given') return `bez zmian, ${formatMl(row.remainingAfter)} ml`;
+    return `${formatMl(row.remainingAfter)} ml`;
+  }
+
   function buildReportTableRows() {
-    return getEntriesSorted().map((entry) => `
+    const { rowsById } = getAmpouleRowsByEntryId();
+    return getEntriesAscending().map((entry) => {
+      const ampouleRow = rowsById.get(entry.id);
+      return `
       <tr>
         <td>${escapeHtml(formatDateShort(entry.date))}</td>
         <td>${escapeHtml(entry.time || '—')}</td>
         <td>${entry.status === 'given' ? `${escapeHtml(formatDose(entry.dose))} ${escapeHtml(entry.unit)}` : '—'}</td>
         <td>${entry.status === 'given' ? escapeHtml(formatPlace(entry.side, entry.site)) : '—'}</td>
         <td>${entry.status === 'given' ? 'Podano' : 'Pominięto'}</td>
+        <td>${escapeHtml(formatReportAmpouleCell(ampouleRow))}</td>
+        <td>${ampouleRow ? escapeHtml(formatDateShort(ampouleRow.ampouleStartDate)) : '—'}</td>
+        <td>${escapeHtml(formatReportRemainingCell(ampouleRow))}</td>
         <td>${entry.note ? escapeHtml(entry.note) : '—'}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   function ampouleReportSummary(info) {
@@ -1222,17 +1348,28 @@
     if (info.todayIsLast) {
       return {
         number: String(info.ampouleNumber),
-        text: `aktualna ampułka, dzisiaj ostatni zastrzyk, po dawce ok. ${formatMl(info.remainingAfterToday)} ml`
+        text: `start ${formatDateShort(info.ampouleStartDate)}, dzisiaj ostatni zastrzyk, następna ampułka planowo od ${formatDateShort(info.nextAmpouleStartDate)}`
+      };
+    }
+    if (info.todayStartsNewAmpoule) {
+      return {
+        number: String(info.ampouleNumber),
+        text: `nowa ampułka od ${formatDateShort(info.ampouleStartDate)}, po dzisiejszej dawce ok. ${formatMl(info.remainingAfterToday)} ml`
       };
     }
     return {
       number: String(info.ampouleNumber),
-      text: `aktualna ampułka, po dzisiejszej dawce ok. ${formatMl(info.remainingAfterToday)} ml`
+      text: `start ${formatDateShort(info.ampouleStartDate)}, po dzisiejszej dawce ok. ${formatMl(info.remainingAfterToday)} ml`
     };
   }
 
+  function getReportPeriodText(entries) {
+    if (!entries.length) return 'brak wpisów';
+    return `${formatDateShort(entries[0].date)} – ${formatDateShort(entries[entries.length - 1].date)}`;
+  }
+
   function buildReportBody() {
-    const entries = getEntriesSorted();
+    const entries = getEntriesAscending();
     const given = entries.filter((entry) => entry.status === 'given').length;
     const skipped = entries.filter((entry) => entry.status === 'skipped').length;
     const ampouleInfo = getAmpouleInfo();
@@ -1240,6 +1377,7 @@
     return `
       <h1>Dzienniczek hormonu wzrostu</h1>
       <p class="generated">Raport wygenerowano: ${escapeHtml(new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date()))}</p>
+      <p class="generated">Zakres wpisów: ${escapeHtml(getReportPeriodText(entries))}</p>
       <div class="summary">
         <div><strong>${entries.length}</strong><span>wszystkich wpisów</span></div>
         <div><strong>${given}</strong><span>podań</span></div>
@@ -1247,8 +1385,8 @@
         <div><strong>${escapeHtml(ampouleReport.number)}</strong><span>${escapeHtml(ampouleReport.text)}</span></div>
       </div>
       <table>
-        <thead><tr><th>Data</th><th>Godzina</th><th>Dawka</th><th>Miejsce</th><th>Status</th><th>Uwagi</th></tr></thead>
-        <tbody>${buildReportTableRows() || '<tr><td colspan="6">Brak wpisów.</td></tr>'}</tbody>
+        <thead><tr><th>Data</th><th>Godzina</th><th>Dawka</th><th>Miejsce</th><th>Status</th><th>Ampułka</th><th>Start ampułki</th><th>Pozostało po wpisie</th><th>Uwagi</th></tr></thead>
+        <tbody>${buildReportTableRows() || '<tr><td colspan="9">Brak wpisów.</td></tr>'}</tbody>
       </table>
       <p class="footer">Aplikacja nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>`;
   }
@@ -1336,19 +1474,28 @@
   }
 
   function buildDocxDocumentXml() {
-    const entries = getEntriesSorted();
+    const entries = getEntriesAscending();
+    const { rowsById } = getAmpouleRowsByEntryId();
     const rows = [
-      ['Data', 'Godzina', 'Dawka', 'Miejsce', 'Status', 'Uwagi'],
-      ...entries.map((entry) => [
-        formatDateShort(entry.date),
-        entry.time,
-        entry.status === 'given' ? `${formatDose(entry.dose)} ${entry.unit}` : '—',
-        entry.status === 'given' ? formatPlace(entry.side, entry.site) : '—',
-        entry.status === 'given' ? 'Podano' : 'Pominięto',
-        entry.note || '—'
-      ])
+      ['Data', 'Godzina', 'Dawka', 'Miejsce', 'Status', 'Ampułka', 'Start ampułki', 'Pozostało po wpisie', 'Uwagi'],
+      ...entries.map((entry) => {
+        const ampouleRow = rowsById.get(entry.id);
+        return [
+          formatDateShort(entry.date),
+          entry.time,
+          entry.status === 'given' ? `${formatDose(entry.dose)} ${entry.unit}` : '—',
+          entry.status === 'given' ? formatPlace(entry.side, entry.site) : '—',
+          entry.status === 'given' ? 'Podano' : 'Pominięto',
+          formatReportAmpouleCell(ampouleRow),
+          ampouleRow ? formatDateShort(ampouleRow.ampouleStartDate) : '—',
+          formatReportRemainingCell(ampouleRow),
+          entry.note || '—'
+        ];
+      })
     ];
-    const tableRows = rows.map((row, rowIndex) => `<w:tr>${row.map((cell) => docxCell(cell, rowIndex === 0)).join('')}</w:tr>`).join('');
+    const tableRows = entries.length
+      ? rows.map((row, rowIndex) => `<w:tr>${row.map((cell) => docxCell(cell, rowIndex === 0)).join('')}</w:tr>`).join('')
+      : `<w:tr>${docxCell('Brak wpisów.', false)}</w:tr>`;
     const generated = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
     const ampouleReport = ampouleReportSummary(getAmpouleInfo());
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1356,11 +1503,12 @@
         <w:body>
           ${docxParagraph('Dzienniczek hormonu wzrostu', true, 32)}
           ${docxParagraph(`Raport wygenerowano: ${generated}`, false, 18)}
+          ${docxParagraph(`Zakres wpisów: ${getReportPeriodText(entries)}`, false, 18)}
           ${docxParagraph(`Liczba wpisów: ${entries.length}. Podano: ${entries.filter((entry) => entry.status === 'given').length}. Pominięto: ${entries.filter((entry) => entry.status === 'skipped').length}.`, false, 20)}
           ${docxParagraph(`Ampułka: ${ampouleReport.number} — ${ampouleReport.text}`, false, 20)}
           <w:tbl>
             <w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="B7C9D6"/><w:left w:val="single" w:sz="4" w:color="B7C9D6"/><w:bottom w:val="single" w:sz="4" w:color="B7C9D6"/><w:right w:val="single" w:sz="4" w:color="B7C9D6"/><w:insideH w:val="single" w:sz="4" w:color="D8E3EA"/><w:insideV w:val="single" w:sz="4" w:color="D8E3EA"/></w:tblBorders></w:tblPr>
-            ${tableRows || `<w:tr>${docxCell('Brak wpisów.', false)}</w:tr>`}
+            ${tableRows}
           </w:tbl>
           ${docxParagraph('Aplikacja nie dobiera dawki i nie zastępuje zaleceń lekarza.', false, 18)}
           <w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr>
@@ -1459,11 +1607,19 @@
   }
 
   function exportCsv() {
-    const header = ['Data', 'Godzina', 'Dawka', 'Jednostka', 'Strona', 'Miejsce', 'Status', 'Uwagi'];
-    const rows = getEntriesSorted().map((entry) => [
-      entry.date, entry.time, entry.status === 'given' ? formatDose(entry.dose) : '', entry.unit,
-      entry.side, entry.site, entry.status === 'given' ? 'Podano' : 'Pominięto', entry.note || ''
-    ]);
+    const header = ['Data', 'Godzina', 'Dawka', 'Jednostka', 'Strona', 'Miejsce', 'Status', 'Ampułka', 'Start ampułki', 'Pozostało po wpisie', 'Uwagi'];
+    const { rowsById } = getAmpouleRowsByEntryId();
+    const rows = getEntriesAscending().map((entry) => {
+      const ampouleRow = rowsById.get(entry.id);
+      return [
+        entry.date, entry.time, entry.status === 'given' ? formatDose(entry.dose) : '', entry.unit,
+        entry.side, entry.site, entry.status === 'given' ? 'Podano' : 'Pominięto',
+        formatReportAmpouleCell(ampouleRow),
+        ampouleRow ? ampouleRow.ampouleStartDate : '',
+        formatReportRemainingCell(ampouleRow),
+        entry.note || ''
+      ];
+    });
     const csv = '\uFEFF' + [header, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
     downloadFile(`dzienniczek-historia-${localDateISO()}.csv`, csv, 'text/csv;charset=utf-8');
     showToast('Pobrano historię CSV.', 'success');
@@ -2110,6 +2266,10 @@
       console.warn('Nie udało się zarejestrować service workera:', error);
       return null;
     }
+  }
+
+  function getEntriesAscending() {
+    return [...data.entries].sort((a, b) => `${a.date}T${a.time || '00:00'}`.localeCompare(`${b.date}T${b.time || '00:00'}`));
   }
 
   function getEntriesSorted() {

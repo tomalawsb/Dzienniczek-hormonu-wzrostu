@@ -1,6 +1,6 @@
 # Dzienniczek hormonu wzrostu PWA
 
-Wersja: **1.5 - 2406262138**
+Wersja: **1.6 - 2406262227**
 
 Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Projekt jest przeznaczony do publikacji przez GitHub Pages.
 
@@ -16,8 +16,9 @@ Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i k
 - automatyczna rotacja miejsc bez uwzględniania przyszłych wpisów,
 - automatyczne odświeżenie daty po północy i po powrocie do aplikacji,
 - przypomnienie systemowe z proponowanym miejscem wkłucia, dawką i stanem ampułki,
-- licznik ampułki 10 ml liczony od dnia rozpoczęcia i dawki zużywanej w ml,
-- numer aktualnej ampułki widoczny w aplikacji oraz w raportach PDF/Word,
+- licznik ampułki liczony automatycznie po kolejnych podaniach, bez zużycia przy dawkach pominiętych,
+- automatyczne rozpoczęcie kolejnej ampułki przy następnym podaniu po zakończeniu poprzedniej,
+- numer aktualnej ampułki i data jej startu widoczne w aplikacji oraz w raportach PDF/Word/CSV,
 - ekran zgód przy pierwszym uruchomieniu,
 - raport PDF przez systemowe okno drukowania,
 - prawidłowy dokument Microsoft Word `.docx`,
@@ -43,7 +44,9 @@ Aplikacja nie pozwala utworzyć dwóch wpisów z tą samą datą. Jeśli wpis dl
 
 ## Ampułka 10 ml
 
-W ustawieniach należy wskazać datę rozpoczęcia pierwszej ampułki. Program liczy zużycie technicznie na podstawie pojemności ampułki i dawki zużywanej w ml. Jeśli domyślna jednostka dawki to `ml`, używana jest dawka domyślna. Przy jednostkach `mg`, `IU` albo `j.m.` trzeba wpisać osobno zużycie w ml, bo aplikacja nie przelicza medycznie mg/IU na ml.
+W ustawieniach należy wskazać datę rozpoczęcia znanej ampułki oraz jej numer. Program dalej sam liczy kolejne ampułki po rzeczywistych podaniach. Jeśli poprzednia ampułka została zakończona, następna zacznie się automatycznie przy kolejnym podaniu. Pominięta dawka nie zużywa ampułki i nie rozpoczyna nowej.
+
+Program liczy zużycie technicznie na podstawie pojemności ampułki i dawki zużywanej w ml. Jeśli domyślna jednostka dawki to `ml`, używana jest dawka domyślna. Przy jednostkach `mg`, `IU` albo `j.m.` trzeba wpisać osobno zużycie w ml, bo aplikacja nie przelicza medycznie mg/IU na ml.
 
 Na ekranie głównym pojawia się status ampułki. Gdy dzisiejsza dawka jest ostatnia z bieżącej ampułki, aplikacja pokazuje komunikat i dopisuje tę informację do powiadomienia.
 
@@ -62,7 +65,7 @@ GitHub Pages jest hostingiem statycznym. Przypomnienie działa najpewniej, gdy a
 
 - **PDF** — otwiera raport i systemowe okno drukowania; wybierz „Zapisz jako PDF”.
 - **Word** — pobiera prawidłowy plik `.docx`.
-- **CSV** — tabela historii do Excela lub innego arkusza.
+- **CSV** — tabela historii do Excela lub innego arkusza, od najstarszego do najnowszego wpisu, z numerem ampułki, datą jej startu i stanem po wpisie.
 - **JSON** — pełna kopia danych i ustawień.
 
 ## Skróty klawiaturowe
