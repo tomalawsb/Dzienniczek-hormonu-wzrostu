@@ -1,0 +1,11 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.5 - 2406262138
+
+Najważniejsze poprawki:
+- propozycja miejsca wkłucia jest teraz na samej górze karty „Co teraz zrobić”,
+- przycisk „Wybierz tę propozycję” nie zapisuje już automatycznie wpisu,
+- po wybraniu propozycji aplikacja wypełnia dzisiejsze podanie i pozwala zmienić dawkę albo miejsce przed zapisem,
+- ustawianie daty startu/wymiany ampułki zostało tylko w ustawieniach,
+- dodano pole „Numer ampułki w tym dniu”, aby można było ustawić np. aktualną ampułkę numer 13,
+- numer aktualnej ampułki jest widoczny w aplikacji,
+- numer i stan ampułki dodano do podsumowań PDF oraz Word,
+- komunikaty końca ampułki pokazują numer ampułki.

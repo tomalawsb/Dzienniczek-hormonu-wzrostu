@@ -81,15 +81,15 @@
           <article class="card action-card" aria-labelledby="main-action-heading">
             <div class="action-card__content">
               <p class="eyebrow">Co teraz zrobić</p>
-              <h2 id="main-action-heading">Uzupełnij dzisiejsze podanie</h2>
-              <p id="main-action-text" class="muted">Aplikacja podpowie miejsce wkłucia i pomoże zapisać dzisiejszy wpis.</p>
+              <h2 id="main-action-heading">Proponowane miejsce: —</h2>
+              <p id="main-action-text" class="muted">Proponowane miejsce wkłucia jest teraz najważniejszą informacją na ekranie.</p>
               <div id="ampoule-alert" class="ampoule-alert" role="status" aria-live="polite">
                 <strong id="ampoule-alert-title">Ampułka</strong>
                 <span id="ampoule-alert-text">W ustawieniach wybierz dzień rozpoczęcia aktualnej ampułki.</span>
               </div>
             </div>
             <div class="action-card__actions">
-              <button id="recommended-save-button" class="button button--primary" type="button">Zapisz zalecane podanie</button>
+              <button id="recommended-save-button" class="button button--primary" type="button">Wybierz tę propozycję</button>
               <button id="ampoule-start-main-button" class="button button--secondary is-hidden" type="button">Ustaw datę ampułki na dzisiaj</button>
               <button id="recommended-manual-button" class="button button--secondary" type="button">Ustawienia ampułki</button>
             </div>
@@ -342,11 +342,15 @@
                   <h3>Ampułka</h3>
                   <span class="settings-hint">Wybierz dzień rozpoczęcia aktualnej ampułki lub ostatniej wymiany.</span>
                 </div>
-                <p class="muted">Program liczy zużycie od ustawionej daty. Jeżeli ampułka została wymieniona wcześniej, po prostu zmień tę datę.</p>
+                <p class="muted">Program liczy zużycie od ustawionej daty i od wpisanego numeru ampułki. Jeżeli aktualna ampułka to 13, wpisz numer 13 przy dacie jej startu.</p>
                 <div class="form-grid form-grid--settings">
                   <label>
-                    <span>Data rozpoczęcia aktualnej ampułki</span>
+                    <span>Data startu / ostatniej wymiany</span>
                     <input id="ampoule-start-date" type="date">
+                  </label>
+                  <label>
+                    <span>Numer ampułki w tym dniu</span>
+                    <input id="ampoule-start-number" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value="1">
                   </label>
                   <label>
                     <span>Pojemność ampułki w ml</span>

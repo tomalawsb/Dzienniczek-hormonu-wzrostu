@@ -190,6 +190,7 @@ main {
 }
 .action-card__content { display: grid; gap: 9px; }
 .action-card__content .muted { margin: 0; font-size: 1rem; }
+.action-card #main-action-heading { font-size: clamp(1.55rem, 3.6vw, 2.25rem); }
 .action-card__actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .ampoule-alert {
   display: grid;

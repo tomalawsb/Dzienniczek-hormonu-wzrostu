@@ -43,7 +43,7 @@
   ];
 
   const defaultData = {
-    version: 4,
+    version: 5,
     settings: {
       defaultDose: '1,0',
       unit: 'mg',
@@ -53,6 +53,7 @@
       reminderEnabled: true,
       reminderTime: '21:00',
       ampouleStartDate: '',
+      ampouleStartNumber: 1,
       ampouleVolumeMl: DEFAULT_AMPOULE_VOLUME_ML,
       ampouleDoseMl: ''
     },
@@ -114,7 +115,7 @@
       'calendar-month-label', 'calendar-grid', 'selected-day-label', 'selected-day-entries',
       'add-for-selected-day', 'history-search', 'status-filter', 'site-filter', 'history-table-body',
       'history-empty', 'settings-dose', 'settings-unit', 'settings-time', 'ampoule-start-date',
-      'ampoule-volume', 'ampoule-dose-ml', 'ampoule-start-today-button', 'voice-feedback-toggle',
+      'ampoule-start-number', 'ampoule-volume', 'ampoule-dose-ml', 'ampoule-start-today-button', 'voice-feedback-toggle',
       'voice-confirm-toggle', 'save-settings-button', 'reminder-enabled-toggle', 'reminder-time',
       'save-reminder-button', 'notification-permission-status', 'request-notification-button',
       'test-notification-button', 'export-pdf-button', 'export-word-button', 'export-json-button',
@@ -262,7 +263,7 @@
     return {
       removedDuplicates,
       data: {
-        version: 4,
+        version: 5,
         settings: sanitizeSettings(parsed?.settings),
         meta: sanitizeMeta(parsed?.meta),
         entries
@@ -281,6 +282,7 @@
       reminderEnabled: typeof settings.reminderEnabled === 'boolean' ? settings.reminderEnabled : defaultData.settings.reminderEnabled,
       reminderTime: isValidTime(settings.reminderTime) ? settings.reminderTime : defaultData.settings.reminderTime,
       ampouleStartDate: isValidIsoDate(settings.ampouleStartDate) ? settings.ampouleStartDate : defaultData.settings.ampouleStartDate,
+      ampouleStartNumber: normalizeAmpouleNumber(settings.ampouleStartNumber),
       ampouleVolumeMl: normalizePositiveDecimal(settings.ampouleVolumeMl) || defaultData.settings.ampouleVolumeMl,
       ampouleDoseMl: normalizeOptionalPositiveDecimal(settings.ampouleDoseMl)
     };
@@ -548,26 +550,25 @@
     el['ampoule-start-main-button'].classList.add('is-hidden');
 
     if (todayEntry?.status === 'given') {
-      el['main-action-heading'].textContent = 'Dzisiejszy zastrzyk jest już zapisany';
-      el['main-action-text'].textContent = `${formatDateShort(todayEntry.date)}, ${todayEntry.time}: ${formatPlace(todayEntry.side, todayEntry.site)}, ${formatDose(todayEntry.dose)} ${todayEntry.unit}.`;
+      el['main-action-heading'].textContent = `Dzisiaj zapisano: ${capitalize(formatPlace(todayEntry.side, todayEntry.site))}`;
+      el['main-action-text'].textContent = `${formatDateShort(todayEntry.date)}, ${todayEntry.time}. Dawka: ${formatDose(todayEntry.dose)} ${todayEntry.unit}.`;
       el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
     } else if (todayEntry?.status === 'skipped') {
       el['main-action-heading'].textContent = 'Dzisiaj dawka jest oznaczona jako pominięta';
       el['main-action-text'].textContent = 'Jeżeli to pomyłka, otwórz edycję i popraw dzisiejszy wpis.';
       el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
     } else {
-      el['main-action-heading'].textContent = `Podaj dzisiaj: ${suggestedPlace}`;
-      el['main-action-text'].textContent = `Program sam wybrał kolejne miejsce z rotacji. Dawka: ${doseText}, godzina: ${quickDraft.time}. Ręczne zmiany są niżej w sekcji „Dzisiejsze podanie”.`;
-      el['recommended-save-button'].textContent = ready ? 'Zapisz przygotowane podanie' : 'Użyj propozycji i zapisz';
+      el['main-action-heading'].textContent = `Proponowane miejsce: ${suggestedPlace}`;
+      el['main-action-text'].textContent = `To jest najważniejsza informacja na teraz. Dawka: ${doseText}, godzina: ${quickDraft.time}. Po wybraniu propozycji możesz jeszcze zmienić dawkę albo miejsce przed zapisem.`;
+      el['recommended-save-button'].textContent = 'Wybierz tę propozycję';
     }
 
     if (!ampouleInfo.configured && ampouleInfo.reason === 'start') {
       el['recommended-manual-button'].textContent = 'Ustaw datę ampułki';
-      el['ampoule-start-main-button'].classList.remove('is-hidden');
     } else if (!ampouleInfo.configured && ampouleInfo.reason === 'dose') {
       el['recommended-manual-button'].textContent = 'Ustaw dawkę ampułki';
     } else if (ampouleInfo.todayIsLast) {
-      el['recommended-manual-button'].textContent = 'Zapisz wymianę ampułki';
+      el['recommended-manual-button'].textContent = 'Ustawienia ampułki';
     }
 
     const ampouleMessage = ampouleSummary(ampouleInfo);
@@ -715,6 +716,7 @@
     el['settings-unit'].value = data.settings.unit;
     el['settings-time'].value = data.settings.defaultTime;
     el['ampoule-start-date'].value = data.settings.ampouleStartDate || '';
+    el['ampoule-start-number'].value = data.settings.ampouleStartNumber || 1;
     el['ampoule-volume'].value = data.settings.ampouleVolumeMl || DEFAULT_AMPOULE_VOLUME_ML;
     el['ampoule-dose-ml'].value = data.settings.ampouleDoseMl || '';
     el['voice-feedback-toggle'].checked = Boolean(data.settings.voiceFeedback);
@@ -865,7 +867,11 @@
       status: 'given'
     });
     quickDraftTouched = true;
-    saveQuickDraft();
+    lastRecognizedText = `Propozycja: ${formatPlace(suggestion.side, suggestion.site)}`;
+    renderToday();
+    document.querySelector('.injection-card')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    el['save-button'].focus({ preventScroll: true });
+    showToast('Propozycja została przygotowana. Możesz zmienić dawkę lub miejsce, albo nacisnąć „Zapisz”.', 'success');
   }
 
   function openAmpouleSettings() {
@@ -982,7 +988,8 @@
     const usedInCurrentBefore = usedBeforeToday % volumeMl;
     const remainingBeforeToday = volumeMl - usedInCurrentBefore;
     const remainingAfterToday = Math.max(0, remainingBeforeToday - todayDoseMl);
-    const ampouleNumber = Math.floor(usedBeforeToday / volumeMl) + 1;
+    const startNumber = normalizeAmpouleNumber(data.settings.ampouleStartNumber);
+    const ampouleNumber = startNumber + Math.floor(usedBeforeToday / volumeMl);
     const todayIsLast = todayDoseMl > 0 && todayDoseMl >= remainingBeforeToday - 0.000001;
     const approximateDosesLeftAfterToday = Math.floor((remainingAfterToday + 0.000001) / configuredDoseMl);
 
@@ -1024,8 +1031,8 @@
       return {
         level: 'danger',
         short: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
-        title: 'Ampułka: ostatni zastrzyk',
-        text: `${prefix} ostatnim zastrzykiem z tej ampułki. Po podaniu ustaw w ustawieniach dzień rozpoczęcia nowej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
+        title: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
+        text: `${prefix} ostatnim zastrzykiem z ampułki ${info.ampouleNumber}. Po podaniu ustaw w ustawieniach dzień rozpoczęcia nowej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
       };
     }
     return {
@@ -1146,6 +1153,7 @@
       showToast('Podaj prawidłową dawkę domyślną.', 'error');
       return;
     }
+    const ampouleStartNumber = normalizeAmpouleNumber(el['ampoule-start-number'].value);
     const ampouleVolume = normalizePositiveDecimal(el['ampoule-volume'].value) || DEFAULT_AMPOULE_VOLUME_ML;
     const ampouleDoseMl = normalizeOptionalPositiveDecimal(el['ampoule-dose-ml'].value);
     const ampouleStartDate = el['ampoule-start-date'].value;
@@ -1162,6 +1170,7 @@
     data.settings.unit = ALLOWED_UNITS.has(el['settings-unit'].value) ? el['settings-unit'].value : 'mg';
     data.settings.defaultTime = isValidTime(el['settings-time'].value) ? el['settings-time'].value : '20:00';
     data.settings.ampouleStartDate = ampouleStartDate || '';
+    data.settings.ampouleStartNumber = ampouleStartNumber;
     data.settings.ampouleVolumeMl = ampouleVolume;
     data.settings.ampouleDoseMl = ampouleDoseMl;
     data.settings.voiceFeedback = el['voice-feedback-toggle'].checked;
@@ -1206,10 +1215,28 @@
       </tr>`).join('');
   }
 
+  function ampouleReportSummary(info) {
+    if (!info.configured) {
+      return { number: '—', text: info.reason === 'dose' ? 'brak dawki w ml do obliczeń' : 'brak daty startu ampułki' };
+    }
+    if (info.todayIsLast) {
+      return {
+        number: String(info.ampouleNumber),
+        text: `aktualna ampułka, dzisiaj ostatni zastrzyk, po dawce ok. ${formatMl(info.remainingAfterToday)} ml`
+      };
+    }
+    return {
+      number: String(info.ampouleNumber),
+      text: `aktualna ampułka, po dzisiejszej dawce ok. ${formatMl(info.remainingAfterToday)} ml`
+    };
+  }
+
   function buildReportBody() {
     const entries = getEntriesSorted();
     const given = entries.filter((entry) => entry.status === 'given').length;
     const skipped = entries.filter((entry) => entry.status === 'skipped').length;
+    const ampouleInfo = getAmpouleInfo();
+    const ampouleReport = ampouleReportSummary(ampouleInfo);
     return `
       <h1>Dzienniczek hormonu wzrostu</h1>
       <p class="generated">Raport wygenerowano: ${escapeHtml(new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date()))}</p>
@@ -1217,6 +1244,7 @@
         <div><strong>${entries.length}</strong><span>wszystkich wpisów</span></div>
         <div><strong>${given}</strong><span>podań</span></div>
         <div><strong>${skipped}</strong><span>pominiętych</span></div>
+        <div><strong>${escapeHtml(ampouleReport.number)}</strong><span>${escapeHtml(ampouleReport.text)}</span></div>
       </div>
       <table>
         <thead><tr><th>Data</th><th>Godzina</th><th>Dawka</th><th>Miejsce</th><th>Status</th><th>Uwagi</th></tr></thead>
@@ -1322,12 +1350,14 @@
     ];
     const tableRows = rows.map((row, rowIndex) => `<w:tr>${row.map((cell) => docxCell(cell, rowIndex === 0)).join('')}</w:tr>`).join('');
     const generated = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+    const ampouleReport = ampouleReportSummary(getAmpouleInfo());
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
         <w:body>
           ${docxParagraph('Dzienniczek hormonu wzrostu', true, 32)}
           ${docxParagraph(`Raport wygenerowano: ${generated}`, false, 18)}
           ${docxParagraph(`Liczba wpisów: ${entries.length}. Podano: ${entries.filter((entry) => entry.status === 'given').length}. Pominięto: ${entries.filter((entry) => entry.status === 'skipped').length}.`, false, 20)}
+          ${docxParagraph(`Ampułka: ${ampouleReport.number} — ${ampouleReport.text}`, false, 20)}
           <w:tbl>
             <w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="B7C9D6"/><w:left w:val="single" w:sz="4" w:color="B7C9D6"/><w:bottom w:val="single" w:sz="4" w:color="B7C9D6"/><w:right w:val="single" w:sz="4" w:color="B7C9D6"/><w:insideH w:val="single" w:sz="4" w:color="D8E3EA"/><w:insideV w:val="single" w:sz="4" w:color="D8E3EA"/></w:tblBorders></w:tblPr>
             ${tableRows || `<w:tr>${docxCell('Brak wpisów.', false)}</w:tr>`}
@@ -1460,7 +1490,7 @@
       if (!window.confirm(`Import zawiera ${unique.entries.length} ${plural(unique.entries.length, 'wpis', 'wpisy', 'wpisów')}. Zastąpić obecne dane?`)) return;
       const previousData = data;
       data = {
-        version: 4,
+        version: 5,
         settings: sanitizeSettings(imported.settings),
         meta: { ...sanitizeMeta(imported.meta), onboardingCompleted: true },
         entries: unique.entries
@@ -2117,6 +2147,11 @@
     const number = Number(cleaned);
     if (!Number.isFinite(number) || number <= 0 || number > 1000) return '';
     return cleaned.replace('.', ',');
+  }
+
+  function normalizeAmpouleNumber(value) {
+    const number = Number.parseInt(String(value ?? '').trim(), 10);
+    return Number.isFinite(number) && number >= 1 && number <= 999 ? number : 1;
   }
 
   function normalizePositiveDecimal(value) {

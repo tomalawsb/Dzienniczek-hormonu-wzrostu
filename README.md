@@ -1,6 +1,6 @@
 # Dzienniczek hormonu wzrostu PWA
 
-Wersja: **1.4 - 2406262035**
+Wersja: **1.5 - 2406262138**
 
 Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Projekt jest przeznaczony do publikacji przez GitHub Pages.
 
@@ -17,6 +17,7 @@ Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i k
 - automatyczne odświeżenie daty po północy i po powrocie do aplikacji,
 - przypomnienie systemowe z proponowanym miejscem wkłucia, dawką i stanem ampułki,
 - licznik ampułki 10 ml liczony od dnia rozpoczęcia i dawki zużywanej w ml,
+- numer aktualnej ampułki widoczny w aplikacji oraz w raportach PDF/Word,
 - ekran zgód przy pierwszym uruchomieniu,
 - raport PDF przez systemowe okno drukowania,
 - prawidłowy dokument Microsoft Word `.docx`,
