@@ -1,0 +1,34 @@
+Dzienniczek hormonu wzrostu PWA
+Wersja 1.3 - 2306262127
+
+Zmiany wykonane w tej wersji:
+
+1. Uproszczono ekran główny
+- dodano górną kartę „Co teraz zrobić”,
+- program sam pokazuje najważniejsze działanie na dziś,
+- ręczne opcje zostały przesunięte niżej i pełnią rolę awaryjnej edycji.
+
+2. Dodano szybki zapis zalecanego podania
+- przycisk „Użyj propozycji i zapisz” sam wybiera kolejne miejsce z rotacji,
+- zapisuje dzisiejszą dawkę według ustawień domyślnych,
+- jeśli wpis już istnieje, otwiera go do edycji zamiast tworzyć duplikat.
+
+3. Dodano licznik ampułki
+- domyślna pojemność ampułki: 10 ml,
+- użytkownik ustawia datę rozpoczęcia pierwszej ampułki,
+- program sam liczy zużycie kolejnych ampułek na podstawie historii podań,
+- pominięte dawki nie zmniejszają stanu ampułki,
+- jeżeli jednostka dawki to ml, program używa dawki domyślnej,
+- dla jednostek mg/IU/j.m. dodano osobne pole „Dawka z ampułki w ml”.
+
+4. Dodano ostrzeżenie o ostatnim zastrzyku z ampułki
+- ekran główny pokazuje, czy dzisiaj jest ostatni zastrzyk z bieżącej ampułki,
+- powiadomienie systemowe dopisuje informację: „Dzisiaj jest ostatni zastrzyk z tej ampułki.”
+
+5. Zmieniono cache PWA
+- podniesiono cache service workera do gh-dzienniczek-v1.3, żeby telefon pobrał nową wersję po wdrożeniu.
+
+Czego nie zmieniano:
+- aplikacja nadal nie dobiera dawki medycznej,
+- nie przelicza mg/IU na ml,
+- nadal zapisuje tylko jeden wpis dziennie.

@@ -78,6 +78,23 @@
         <section id="view-today" class="view is-active" aria-labelledby="today-heading">
           <h1 id="today-heading" class="sr-only">Dzisiejsze podanie</h1>
 
+          <article class="card action-card" aria-labelledby="main-action-heading">
+            <div class="action-card__content">
+              <p class="eyebrow">Co teraz zrobić</p>
+              <h2 id="main-action-heading">—</h2>
+              <p id="main-action-text" class="muted">—</p>
+              <div id="ampoule-alert" class="ampoule-alert" role="status" aria-live="polite">
+                <strong id="ampoule-alert-title">Ampułka</strong>
+                <span id="ampoule-alert-text">Ustaw datę rozpoczęcia ampułki.</span>
+              </div>
+            </div>
+            <div class="action-card__actions">
+              <button id="recommended-save-button" class="button button--primary" type="button">Zapisz zalecane podanie</button>
+              <button id="ampoule-start-main-button" class="button button--secondary is-hidden" type="button">Ustaw start na dzisiaj</button>
+              <button id="recommended-manual-button" class="button button--secondary" type="button">Zmień ręcznie</button>
+            </div>
+          </article>
+
           <div class="today-layout">
             <article class="card injection-card">
               <div class="card-heading-row">
@@ -152,6 +169,13 @@
                     <strong id="suggested-place">Lewy brzuch</strong>
                   </div>
                   <button id="use-suggestion-button" class="mini-button" type="button">Użyj</button>
+                </div>
+                <div class="info-row">
+                  <span class="info-icon info-icon--warning" aria-hidden="true">◌</span>
+                  <div>
+                    <span>Ampułka</span>
+                    <strong id="ampoule-status">Ustaw rozpoczęcie</strong>
+                  </div>
                 </div>
               </article>
 
@@ -303,6 +327,28 @@
                   <input id="settings-time" type="time">
                 </label>
               </div>
+
+              <div class="settings-subsection">
+                <h3>Ampułka</h3>
+                <p class="muted">Program liczy zużycie ampułki od dnia rozpoczęcia. Obliczenia są techniczne — dawkę nadal ustalasz według zaleceń lekarza.</p>
+                <div class="form-grid form-grid--settings">
+                  <label>
+                    <span>Start pierwszej ampułki</span>
+                    <input id="ampoule-start-date" type="date">
+                  </label>
+                  <label>
+                    <span>Pojemność ampułki</span>
+                    <input id="ampoule-volume" inputmode="decimal" autocomplete="off" value="10">
+                  </label>
+                  <label>
+                    <span>Dawka z ampułki w ml</span>
+                    <input id="ampoule-dose-ml" inputmode="decimal" autocomplete="off" placeholder="np. 1,0">
+                  </label>
+                </div>
+                <p class="muted">Jeżeli jednostka domyślna to ml, program użyje dawki domyślnej. W pozostałych jednostkach wpisz osobno zużycie w ml.</p>
+                <button id="ampoule-start-today-button" class="button button--secondary button--small" type="button">Ustaw start ampułki na dzisiaj</button>
+              </div>
+
               <button id="save-settings-button" class="button button--primary button--small" type="button">Zapisz ustawienia</button>
             </article>
 

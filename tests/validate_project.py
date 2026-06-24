@@ -78,8 +78,10 @@ for token in required_logic:
     if token not in app:
         errors.append(f"Brak wymaganej logiki w app.js: {token}")
 
-if "gh-dzienniczek-v1.2" not in worker:
-    errors.append("service-worker.js nie ma numeru cache wersji 1.2.")
+if version_text:
+    cache_version = version_text.split(" - ", 1)[0]
+    if f"gh-dzienniczek-v{cache_version}" not in worker:
+        errors.append(f"service-worker.js nie ma numeru cache wersji {cache_version}.")
 
 if "pkg install -y python git gh rsync" not in android_script:
     errors.append("Skrypt Android nie instaluje kompletu wymaganych pakietów.")

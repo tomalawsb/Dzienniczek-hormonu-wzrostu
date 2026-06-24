@@ -8,6 +8,7 @@
   const ALLOWED_SIDES = new Set(['lewa', 'prawa']);
   const ALLOWED_SITES = new Set(['brzuch', 'udo', 'ramię', 'pośladek', 'łopatka']);
   const ALLOWED_STATUSES = new Set(['given', 'skipped']);
+  const DEFAULT_AMPOULE_VOLUME_ML = '10';
   const startupWarnings = [];
   const MONTHS = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
   const MONTHS_NORMALIZED = {
@@ -50,7 +51,10 @@
       voiceFeedback: false,
       voiceConfirm: true,
       reminderEnabled: true,
-      reminderTime: '21:00'
+      reminderTime: '21:00',
+      ampouleStartDate: '',
+      ampouleVolumeMl: DEFAULT_AMPOULE_VOLUME_ML,
+      ampouleDoseMl: ''
     },
     meta: {
       onboardingCompleted: false,
@@ -99,15 +103,18 @@
   function cacheElements() {
     const ids = [
       'current-date-label', 'today-entry-date', 'today-dose', 'today-time', 'today-status-heading', 'today-status-badge',
+      'main-action-heading', 'main-action-text', 'recommended-save-button', 'recommended-manual-button',
+      'ampoule-start-main-button', 'ampoule-alert', 'ampoule-alert-title', 'ampoule-alert-text',
       'voice-button', 'voice-result', 'voice-result-text', 'selected-place', 'save-button', 'edit-button',
-      'skip-button', 'last-place', 'suggested-place', 'use-suggestion-button', 'mini-calendar', 'recent-list',
+      'skip-button', 'last-place', 'suggested-place', 'ampoule-status', 'use-suggestion-button', 'mini-calendar', 'recent-list',
       'quick-add-button', 'date-chip', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
       'entry-dialog-title', 'entry-id', 'entry-date', 'entry-time', 'entry-dose', 'entry-unit', 'entry-side',
       'entry-site', 'entry-status', 'entry-note', 'delete-entry-button', 'dialog-close-button',
       'dialog-cancel-button', 'toast-region', 'live-region', 'calendar-prev', 'calendar-next',
       'calendar-month-label', 'calendar-grid', 'selected-day-label', 'selected-day-entries',
       'add-for-selected-day', 'history-search', 'status-filter', 'site-filter', 'history-table-body',
-      'history-empty', 'settings-dose', 'settings-unit', 'settings-time', 'voice-feedback-toggle',
+      'history-empty', 'settings-dose', 'settings-unit', 'settings-time', 'ampoule-start-date',
+      'ampoule-volume', 'ampoule-dose-ml', 'ampoule-start-today-button', 'voice-feedback-toggle',
       'voice-confirm-toggle', 'save-settings-button', 'reminder-enabled-toggle', 'reminder-time',
       'save-reminder-button', 'notification-permission-status', 'request-notification-button',
       'test-notification-button', 'export-pdf-button', 'export-word-button', 'export-json-button',
@@ -136,6 +143,9 @@
     el['place-field'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
     el['dose-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-dose'));
     el['time-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-time'));
+    el['recommended-save-button'].addEventListener('click', saveRecommendedDraft);
+    el['recommended-manual-button'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
+    el['ampoule-start-main-button'].addEventListener('click', setAmpouleStartToday);
     el['voice-button'].addEventListener('click', toggleVoiceRecognition);
     el['save-button'].addEventListener('click', saveQuickDraft);
     el['skip-button'].addEventListener('click', prepareSkippedDraft);
@@ -163,6 +173,7 @@
     el['selected-day-entries'].addEventListener('click', handleDayDetailsAction);
 
     el['save-settings-button'].addEventListener('click', saveSettings);
+    el['ampoule-start-today-button'].addEventListener('click', setAmpouleStartToday);
     el['save-reminder-button'].addEventListener('click', saveReminderSettings);
     el['request-notification-button'].addEventListener('click', requestNotificationPermission);
     el['test-notification-button'].addEventListener('click', testReminderNotification);
@@ -264,7 +275,10 @@
       voiceFeedback: typeof settings.voiceFeedback === 'boolean' ? settings.voiceFeedback : defaultData.settings.voiceFeedback,
       voiceConfirm: typeof settings.voiceConfirm === 'boolean' ? settings.voiceConfirm : defaultData.settings.voiceConfirm,
       reminderEnabled: typeof settings.reminderEnabled === 'boolean' ? settings.reminderEnabled : defaultData.settings.reminderEnabled,
-      reminderTime: isValidTime(settings.reminderTime) ? settings.reminderTime : defaultData.settings.reminderTime
+      reminderTime: isValidTime(settings.reminderTime) ? settings.reminderTime : defaultData.settings.reminderTime,
+      ampouleStartDate: isValidIsoDate(settings.ampouleStartDate) ? settings.ampouleStartDate : defaultData.settings.ampouleStartDate,
+      ampouleVolumeMl: normalizePositiveDecimal(settings.ampouleVolumeMl) || defaultData.settings.ampouleVolumeMl,
+      ampouleDoseMl: normalizeOptionalPositiveDecimal(settings.ampouleDoseMl)
     };
   }
 
@@ -514,6 +528,46 @@
 
     const suggestion = getSuggestedPlace(new Date());
     el['suggested-place'].textContent = capitalize(formatPlace(suggestion.side, suggestion.site));
+
+    const ampouleInfo = getAmpouleInfo();
+    renderMainRecommendation({ todayEntry, ready, suggestion, ampouleInfo, editingExisting });
+  }
+
+  function renderMainRecommendation({ todayEntry, ready, suggestion, ampouleInfo, editingExisting }) {
+    const suggestedPlace = capitalize(formatPlace(suggestion.side, suggestion.site));
+    const doseText = `${formatDose(quickDraft.dose)} ${quickDraft.unit}`;
+
+    el['recommended-save-button'].classList.remove('is-hidden');
+    el['recommended-save-button'].disabled = false;
+    el['recommended-manual-button'].textContent = 'Zmień ręcznie';
+    el['ampoule-start-main-button'].classList.add('is-hidden');
+
+    if (todayEntry?.status === 'given') {
+      el['main-action-heading'].textContent = 'Dzisiejszy zastrzyk jest już zapisany';
+      el['main-action-text'].textContent = `${formatDateShort(todayEntry.date)}, ${todayEntry.time}: ${formatPlace(todayEntry.side, todayEntry.site)}, ${formatDose(todayEntry.dose)} ${todayEntry.unit}.`;
+      el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
+      el['recommended-save-button'].disabled = false;
+      el['recommended-manual-button'].textContent = 'Dodaj ręcznie inny dzień';
+    } else if (todayEntry?.status === 'skipped') {
+      el['main-action-heading'].textContent = 'Dzisiaj dawka jest oznaczona jako pominięta';
+      el['main-action-text'].textContent = 'Możesz zostawić ten status albo wejść w edycję, jeżeli to była pomyłka.';
+      el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
+      el['recommended-manual-button'].textContent = 'Dodaj ręcznie inny dzień';
+    } else {
+      el['main-action-heading'].textContent = `Podaj dzisiaj: ${suggestedPlace}`;
+      el['main-action-text'].textContent = `Program sam wybrał kolejne miejsce z rotacji. Dawka: ${doseText}, godzina: ${quickDraft.time}.`;
+      el['recommended-save-button'].textContent = ready ? 'Zapisz przygotowane podanie' : 'Użyj propozycji i zapisz';
+    }
+
+    if (!ampouleInfo.configured && ampouleInfo.reason === 'start') {
+      el['ampoule-start-main-button'].classList.remove('is-hidden');
+    }
+
+    const ampouleMessage = ampouleSummary(ampouleInfo);
+    el['ampoule-status'].textContent = ampouleMessage.short;
+    el['ampoule-alert-title'].textContent = ampouleMessage.title;
+    el['ampoule-alert-text'].textContent = ampouleMessage.text;
+    el['ampoule-alert'].className = `ampoule-alert ampoule-alert--${ampouleMessage.level}`;
   }
 
   function renderMiniCalendar() {
@@ -653,6 +707,9 @@
     el['settings-dose'].value = data.settings.defaultDose;
     el['settings-unit'].value = data.settings.unit;
     el['settings-time'].value = data.settings.defaultTime;
+    el['ampoule-start-date'].value = data.settings.ampouleStartDate || '';
+    el['ampoule-volume'].value = data.settings.ampouleVolumeMl || DEFAULT_AMPOULE_VOLUME_ML;
+    el['ampoule-dose-ml'].value = data.settings.ampouleDoseMl || '';
     el['voice-feedback-toggle'].checked = Boolean(data.settings.voiceFeedback);
     el['voice-confirm-toggle'].checked = Boolean(data.settings.voiceConfirm);
     el['reminder-enabled-toggle'].checked = Boolean(data.settings.reminderEnabled);
@@ -785,6 +842,33 @@
     speakIfEnabled(message);
   }
 
+  function saveRecommendedDraft() {
+    const today = localDateISO();
+    const todayEntry = getEntryForDate(today);
+    if (todayEntry) {
+      openEntryDialog(todayEntry.id);
+      return;
+    }
+    const suggestion = getSuggestedPlace(new Date());
+    quickDraft = createDefaultDraft({
+      date: today,
+      time: data.settings.defaultTime,
+      side: suggestion.side,
+      site: suggestion.site,
+      status: 'given'
+    });
+    quickDraftTouched = true;
+    saveQuickDraft();
+  }
+
+  function setAmpouleStartToday() {
+    data.settings.ampouleStartDate = localDateISO();
+    if (el['ampoule-start-date']) el['ampoule-start-date'].value = data.settings.ampouleStartDate;
+    if (!persistData()) return;
+    renderAll();
+    showToast('Ustawiono dzisiaj jako początek ampułki.', 'success');
+  }
+
   function saveQuickDraft() {
     if (quickDraft.status === 'given' && (!quickDraft.side || !quickDraft.site || !normalizeDose(quickDraft.dose))) {
       showToast('Najpierw wybierz lub powiedz miejsce wkłucia oraz sprawdź dawkę.', 'error');
@@ -855,6 +939,104 @@
     lastRecognizedText = formatPlace(suggestion.side, suggestion.site);
     renderToday();
     el['save-button'].focus();
+  }
+
+  function getAmpouleInfo() {
+    const startDate = data.settings.ampouleStartDate || '';
+    const volumeMl = decimalToNumber(data.settings.ampouleVolumeMl) || decimalToNumber(DEFAULT_AMPOULE_VOLUME_ML);
+    const configuredDoseMl = getConfiguredAmpouleDoseMl();
+    const today = localDateISO();
+    const todayEntry = getEntryForDate(today);
+
+    if (!startDate || !isValidIsoDate(startDate)) {
+      return { configured: false, reason: 'start', volumeMl, doseMl: configuredDoseMl, startDate: '' };
+    }
+    if (!configuredDoseMl) {
+      return { configured: false, reason: 'dose', volumeMl, doseMl: 0, startDate };
+    }
+
+    const usedBeforeToday = data.entries
+      .filter((entry) => entry.status === 'given' && entry.date >= startDate && entry.date < today)
+      .reduce((sum, entry) => sum + getEntryAmpouleDoseMl(entry, configuredDoseMl), 0);
+    const todayDoseMl = todayEntry?.status === 'given'
+      ? getEntryAmpouleDoseMl(todayEntry, configuredDoseMl)
+      : configuredDoseMl;
+    const usedInCurrentBefore = usedBeforeToday % volumeMl;
+    const remainingBeforeToday = volumeMl - usedInCurrentBefore;
+    const remainingAfterToday = Math.max(0, remainingBeforeToday - todayDoseMl);
+    const ampouleNumber = Math.floor(usedBeforeToday / volumeMl) + 1;
+    const todayIsLast = todayDoseMl > 0 && todayDoseMl >= remainingBeforeToday - 0.000001;
+    const approximateDosesLeftAfterToday = Math.floor((remainingAfterToday + 0.000001) / configuredDoseMl);
+
+    return {
+      configured: true,
+      reason: '',
+      startDate,
+      volumeMl,
+      doseMl: configuredDoseMl,
+      usedBeforeToday,
+      remainingBeforeToday,
+      remainingAfterToday,
+      ampouleNumber,
+      todayIsLast,
+      todayEntryStatus: todayEntry?.status || '',
+      approximateDosesLeftAfterToday
+    };
+  }
+
+  function ampouleSummary(info) {
+    if (!info.configured && info.reason === 'start') {
+      return {
+        level: 'warning',
+        short: 'Brak daty startu',
+        title: 'Ampułka: ustaw start',
+        text: 'W ustawieniach wybierz dzień rozpoczęcia pierwszej ampułki albo ustaw dzisiaj jako początek.'
+      };
+    }
+    if (!info.configured && info.reason === 'dose') {
+      return {
+        level: 'warning',
+        short: 'Brak dawki w ml',
+        title: 'Ampułka: brak dawki w ml',
+        text: 'Aby liczyć koniec ampułki 10 ml, ustaw dawkę zużywaną z ampułki w ml albo wybierz jednostkę ml.'
+      };
+    }
+    if (info.todayIsLast) {
+      const prefix = info.todayEntryStatus === 'given' ? 'Dzisiejszy wpis był' : 'Dzisiaj jest';
+      return {
+        level: 'danger',
+        short: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
+        title: 'Ampułka: ostatni zastrzyk',
+        text: `${prefix} ostatnim zastrzykiem z tej ampułki. Po nim zostanie około ${formatMl(info.remainingAfterToday)} ml.`
+      };
+    }
+    return {
+      level: 'ok',
+      short: `Ampułka ${info.ampouleNumber}: zostanie ${formatMl(info.remainingAfterToday)} ml`,
+      title: `Ampułka ${info.ampouleNumber}`,
+      text: `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml, czyli około ${info.approximateDosesLeftAfterToday} kolejnych pełnych podań.`
+    };
+  }
+
+  function ampouleNotificationText(info) {
+    if (!info.configured) return '';
+    if (info.todayIsLast) return 'Dzisiaj jest ostatni zastrzyk z tej ampułki.';
+    return `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml w ampułce.`;
+  }
+
+  function getConfiguredAmpouleDoseMl() {
+    if (data.settings.unit === 'ml') return decimalToNumber(data.settings.defaultDose);
+    return decimalToNumber(data.settings.ampouleDoseMl);
+  }
+
+  function getEntryAmpouleDoseMl(entry, fallbackDoseMl) {
+    if (entry?.unit === 'ml') return decimalToNumber(entry.dose) || fallbackDoseMl;
+    return fallbackDoseMl;
+  }
+
+  function formatMl(value) {
+    const rounded = Math.max(0, Math.round((Number(value) || 0) * 100) / 100);
+    return String(rounded).replace('.', ',');
   }
 
   function getLatestGivenBefore(referenceDate = new Date()) {
@@ -946,9 +1128,24 @@
       showToast('Podaj prawidłową dawkę domyślną.', 'error');
       return;
     }
+    const ampouleVolume = normalizePositiveDecimal(el['ampoule-volume'].value) || DEFAULT_AMPOULE_VOLUME_ML;
+    const ampouleDoseMl = normalizeOptionalPositiveDecimal(el['ampoule-dose-ml'].value);
+    const ampouleStartDate = el['ampoule-start-date'].value;
+    if (ampouleStartDate && !isValidIsoDate(ampouleStartDate)) {
+      showToast('Podaj prawidłową datę rozpoczęcia ampułki.', 'error');
+      return;
+    }
+    if (el['ampoule-dose-ml'].value.trim() && !ampouleDoseMl) {
+      showToast('Podaj prawidłową dawkę z ampułki w ml.', 'error');
+      return;
+    }
+
     data.settings.defaultDose = dose;
     data.settings.unit = ALLOWED_UNITS.has(el['settings-unit'].value) ? el['settings-unit'].value : 'mg';
     data.settings.defaultTime = isValidTime(el['settings-time'].value) ? el['settings-time'].value : '20:00';
+    data.settings.ampouleStartDate = ampouleStartDate || '';
+    data.settings.ampouleVolumeMl = ampouleVolume;
+    data.settings.ampouleDoseMl = ampouleDoseMl;
     data.settings.voiceFeedback = el['voice-feedback-toggle'].checked;
     data.settings.voiceConfirm = el['voice-confirm-toggle'].checked;
     if (!persistData()) return;
@@ -1400,7 +1597,9 @@
 
   function reminderBody() {
     const suggestion = getSuggestedPlace();
-    return `Dzisiaj: ${formatPlace(suggestion.side, suggestion.site)}. Dawka: ${formatDose(data.settings.defaultDose)} ${data.settings.unit}.`;
+    const ampouleInfo = getAmpouleInfo();
+    const ampouleText = ampouleNotificationText(ampouleInfo);
+    return `Dzisiaj: ${formatPlace(suggestion.side, suggestion.site)}. Dawka: ${formatDose(data.settings.defaultDose)} ${data.settings.unit}.${ampouleText ? ` ${ampouleText}` : ''}`;
   }
 
   async function showReminderNotification({ test = false } = {}) {
@@ -1900,6 +2099,23 @@
     const number = Number(cleaned);
     if (!Number.isFinite(number) || number <= 0 || number > 1000) return '';
     return cleaned.replace('.', ',');
+  }
+
+  function normalizePositiveDecimal(value) {
+    const normalized = normalizeDose(value);
+    if (!normalized) return '';
+    const number = decimalToNumber(normalized);
+    if (!Number.isFinite(number) || number <= 0 || number > 1000) return '';
+    return normalized;
+  }
+
+  function normalizeOptionalPositiveDecimal(value) {
+    return String(value ?? '').trim() ? normalizePositiveDecimal(value) : '';
+  }
+
+  function decimalToNumber(value) {
+    const number = Number(String(value ?? '').trim().replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(number) && number > 0 ? number : 0;
   }
 
   function formatDateShort(iso) {

@@ -16,7 +16,11 @@ const hook = `
     getDraft: () => ({ ...quickDraft }),
     createDefaultDraft,
     createDocxBlob,
-    setEntries: (entries) => { data.entries = entries; }
+    getAmpouleInfo,
+    ampouleNotificationText,
+    localDateISO,
+    setEntries: (entries) => { data.entries = entries; },
+    setSettings: (settings) => { data.settings = sanitizeSettings({ ...data.settings, ...settings }); }
   };
 `;
 const end = source.lastIndexOf('})();');
@@ -67,6 +71,28 @@ try {
   assert(unique.removedDuplicates === 1, 'Nie zliczono usuniętego duplikatu.');
 
   assert(t.sanitizeEntry({ ...entry('<script>', ''), id: '<script>' }) === null, 'Niebezpieczny identyfikator wpisu nie został odrzucony.');
+
+  const today = new Date();
+  const dateShift = (days) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + days);
+    return t.localDateISO(date);
+  };
+  const ampouleEntries = [];
+  for (let index = 9; index >= 1; index -= 1) {
+    ampouleEntries.push({
+      ...entry(`ampoule-${index}`, `2026-06-15T2${index % 4}:00:00.000Z`),
+      date: dateShift(-index),
+      unit: 'ml',
+      dose: '1,0'
+    });
+  }
+  t.setSettings({ defaultDose: '1,0', unit: 'ml', ampouleStartDate: dateShift(-9), ampouleVolumeMl: '10', ampouleDoseMl: '' });
+  t.setEntries(ampouleEntries);
+  const ampoule = t.getAmpouleInfo();
+  assert(ampoule.configured === true, 'Licznik ampułki nie został skonfigurowany.');
+  assert(ampoule.todayIsLast === true, 'Nie wykryto ostatniego zastrzyku z ampułki.');
+  assert(t.ampouleNotificationText(ampoule).includes('ostatni zastrzyk'), 'Powiadomienie nie zawiera ostrzeżenia o końcu ampułki.');
 
   t.setEntries([entry('entry-docx', '2026-06-15T21:00:00.000Z')]);
   const docx = new Uint8Array(await t.createDocxBlob().arrayBuffer());

@@ -1,12 +1,13 @@
 # Dzienniczek hormonu wzrostu PWA
 
-Wersja: **1.2 - 1506262326**
+Wersja: **1.3 - 2306262127**
 
 Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Projekt jest przeznaczony do publikacji przez GitHub Pages.
 
 ## Najważniejsze funkcje
 
 - dokładnie jeden wpis dziennie — podanie albo pominięcie dawki,
+- główna karta „Co teraz zrobić” z automatyczną propozycją najbliższego działania,
 - szybki zapis daty, godziny, dawki i miejsca wkłucia,
 - obsługa głosowa po polsku,
 - polecenia głosowe można podawać etapami, np. najpierw „wczoraj”, potem „lewy brzuch”,
@@ -14,7 +15,8 @@ Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i k
 - kalendarz, historia, wyszukiwanie, edycja i usuwanie wpisów,
 - automatyczna rotacja miejsc bez uwzględniania przyszłych wpisów,
 - automatyczne odświeżenie daty po północy i po powrocie do aplikacji,
-- przypomnienie systemowe z proponowanym miejscem wkłucia,
+- przypomnienie systemowe z proponowanym miejscem wkłucia, dawką i stanem ampułki,
+- licznik ampułki 10 ml liczony od dnia rozpoczęcia i dawki zużywanej w ml,
 - ekran zgód przy pierwszym uruchomieniu,
 - raport PDF przez systemowe okno drukowania,
 - prawidłowy dokument Microsoft Word `.docx`,
@@ -38,13 +40,19 @@ Aplikacja nie pozwala utworzyć dwóch wpisów z tą samą datą. Jeśli wpis dl
 - `zapisz`
 - `anuluj`
 
+## Ampułka 10 ml
+
+W ustawieniach należy wskazać datę rozpoczęcia pierwszej ampułki. Program liczy zużycie technicznie na podstawie pojemności ampułki i dawki zużywanej w ml. Jeśli domyślna jednostka dawki to `ml`, używana jest dawka domyślna. Przy jednostkach `mg`, `IU` albo `j.m.` trzeba wpisać osobno zużycie w ml, bo aplikacja nie przelicza medycznie mg/IU na ml.
+
+Na ekranie głównym pojawia się status ampułki. Gdy dzisiejsza dawka jest ostatnia z bieżącej ampułki, aplikacja pokazuje komunikat i dopisuje tę informację do powiadomienia.
+
 ## Przypomnienia
 
 W ustawieniach można wybrać godzinę, zezwolić na powiadomienia i wysłać test. Treść zawiera proponowane miejsce i dawkę, np.:
 
 ```text
 Czas na zastrzyk
-Dzisiaj: lewe udo. Dawka: 1,1 mg.
+Dzisiaj: lewe udo. Dawka: 1,1 mg. Dzisiaj jest ostatni zastrzyk z tej ampułki.
 ```
 
 GitHub Pages jest hostingiem statycznym. Przypomnienie działa najpewniej, gdy aplikacja jest otwarta lub system pozwala jej pracować w tle. Po całkowitym zamknięciu przeglądarki dokładna godzina nie jest gwarantowana. Niezawodne powiadomienia o określonej godzinie wymagają wersji natywnej APK albo serwera Web Push.
