@@ -1,6 +1,6 @@
 # Dzienniczek hormonu wzrostu
 
-Wersja: **1.8 - 2506260830**
+Wersja: **1.9 - 2506260900**
 
 Aplikacja do zapisywania podań hormonu wzrostu na telefonie i komputerze.
 
@@ -130,3 +130,16 @@ https://github.com/tomalawsb/Dzienniczek-hormonu-wzrostu.git
 ```
 
 Nie pytają o opis commita. Przed wysłaniem wykonują kontrolę projektu. Skrypty nie usuwają automatycznie dodatkowych plików istniejących już w repozytorium.
+
+
+## Zmiany w wersji 1.9 - 2506260900
+
+- Uproszczono ekran „Dzisiaj”: przycisk „Przygotuj wpis” zastąpiono „Użyj propozycji”, a zapis nazwano „Zapisz podanie”.
+- Dodano widoczny przycisk „Rozpocznij ampułkę dzisiaj” przy braku daty startu ampułki.
+- Dodano stały opis pod przyciskiem zapisu, żeby było jasne, czego brakuje do zapisania wpisu.
+- Dodano osobny zapis ustawień obsługi głosowej.
+- Jeżeli przeglądarka nie obsługuje rozpoznawania mowy, mikrofon jest wyraźnie oznaczony jako niedostępny.
+- Pierwsze uruchomienie nie jest już blokowane modalem zgód; zgody można pominąć i wrócić do nich w ustawieniach.
+- Kliknięcie pola „Miejsce” otwiera prosty wybór miejsca wkłucia zamiast pełnego formularza.
+- W trybie „Pominięto” ukrywane są pola dawki, strony i miejsca.
+- Historia na telefonie układa się jak lista kart, bez poziomego przewijania tabeli.

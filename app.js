@@ -106,9 +106,9 @@
       'current-date-label', 'today-entry-date', 'today-dose', 'today-time', 'today-status-heading', 'today-status-badge',
       'main-action-heading', 'main-action-text', 'recommended-save-button', 'recommended-manual-button',
       'ampoule-start-main-button', 'ampoule-alert', 'ampoule-alert-title', 'ampoule-alert-text',
-      'voice-button', 'voice-result', 'voice-result-text', 'selected-place', 'save-button',
+      'voice-button', 'voice-help', 'voice-result', 'voice-result-text', 'selected-place', 'save-button', 'save-help',
       'skip-button', 'last-place', 'suggested-place', 'ampoule-status', 'use-suggestion-button', 'mini-calendar', 'recent-list',
-      'quick-add-button', 'date-chip', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
+      'date-chip', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
       'entry-dialog-title', 'entry-id', 'entry-date', 'entry-time', 'entry-dose', 'entry-unit', 'entry-side',
       'entry-site', 'entry-status', 'entry-note', 'delete-entry-button', 'dialog-close-button',
       'dialog-cancel-button', 'toast-region', 'live-region', 'calendar-prev', 'calendar-next',
@@ -116,15 +116,15 @@
       'add-for-selected-day', 'history-search', 'status-filter', 'site-filter', 'history-table-body',
       'history-empty', 'settings-dose', 'settings-unit', 'settings-time', 'ampoule-start-date',
       'ampoule-start-number', 'ampoule-volume', 'ampoule-dose-ml', 'ampoule-start-today-button', 'voice-feedback-toggle',
-      'voice-confirm-toggle', 'save-settings-button', 'reminder-enabled-toggle', 'reminder-time',
+      'voice-confirm-toggle', 'save-voice-settings-button', 'save-settings-button', 'reminder-enabled-toggle', 'reminder-time',
       'save-reminder-button', 'notification-permission-status', 'request-notification-button',
       'test-notification-button', 'export-pdf-button', 'export-word-button', 'export-json-button',
       'export-csv-button', 'import-button', 'import-file', 'clear-data-button', 'header-install-button',
       'desktop-install-button', 'settings-install-button', 'version-label', 'permissions-dialog',
       'permission-microphone-button', 'permission-notification-button', 'permission-storage-button',
       'permission-microphone-status', 'permission-notification-status', 'permission-storage-status',
-      'permissions-finish-button', 'microphone-permission-settings', 'notification-permission-settings',
-      'storage-permission-settings', 'open-permissions-button'
+      'permissions-finish-button', 'permissions-skip-button', 'microphone-permission-settings', 'notification-permission-settings',
+      'storage-permission-settings', 'open-permissions-button', 'place-picker-dialog', 'place-picker-options', 'place-picker-edit-button', 'place-picker-close-button'
     ];
     ids.forEach((id) => { el[id] = document.getElementById(id); });
   }
@@ -142,11 +142,16 @@
       button.addEventListener('click', () => openEntryForDate(localDateISO()));
     });
 
-    el['quick-add-button'].addEventListener('click', () => openEntryForDate(localDateISO()));
     el['date-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-date'));
-    el['place-field'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
+    el['place-field'].addEventListener('click', openPlacePicker);
     el['dose-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-dose'));
     el['time-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-time'));
+    el['place-picker-options'].addEventListener('click', handlePlacePickerSelection);
+    el['place-picker-edit-button'].addEventListener('click', openPlaceDetailsFromPicker);
+    el['place-picker-close-button'].addEventListener('click', closePlacePicker);
+    el['place-picker-dialog'].addEventListener('click', (event) => {
+      if (event.target === el['place-picker-dialog']) closePlacePicker();
+    });
     el['recommended-save-button'].addEventListener('click', saveRecommendedDraft);
     el['recommended-manual-button'].addEventListener('click', openAmpouleSettings);
     el['ampoule-start-main-button'].addEventListener('click', setAmpouleStartToday);
@@ -177,6 +182,7 @@
     el['selected-day-entries'].addEventListener('click', handleDayDetailsAction);
 
     el['save-settings-button'].addEventListener('click', saveSettings);
+    el['save-voice-settings-button'].addEventListener('click', saveVoiceSettings);
     el['ampoule-start-today-button'].addEventListener('click', setAmpouleStartToday);
     el['save-reminder-button'].addEventListener('click', saveReminderSettings);
     el['request-notification-button'].addEventListener('click', requestNotificationPermission);
@@ -193,9 +199,10 @@
     el['permission-notification-button'].addEventListener('click', requestNotificationPermission);
     el['permission-storage-button'].addEventListener('click', requestPersistentStorage);
     el['permissions-finish-button'].addEventListener('click', finishPermissionsOnboarding);
+    el['permissions-skip-button'].addEventListener('click', skipPermissionsOnboarding);
     el['open-permissions-button'].addEventListener('click', openPermissionsDialog);
-    el['permissions-dialog'].addEventListener('cancel', (event) => {
-      if (!data.meta.onboardingCompleted) event.preventDefault();
+    el['permissions-dialog'].addEventListener('cancel', () => {
+      if (!data.meta.onboardingCompleted) skipPermissionsOnboarding({ silent: true });
     });
 
     [el['header-install-button'], el['desktop-install-button'], el['settings-install-button']].forEach((button) => {
@@ -501,7 +508,8 @@
     el['save-button'].disabled = !ready;
     el['save-button'].innerHTML = editingExisting
       ? '<span aria-hidden="true">✓</span> Zapisz zmiany'
-      : '<span aria-hidden="true">✓</span> Zapisz';
+      : '<span aria-hidden="true">✓</span> Zapisz podanie';
+    el['save-help'].textContent = quickDraftSaveHelpMessage(ready);
 
     if (todayEntry) {
       el['today-status-badge'].className = `status-badge status-badge--${todayEntry.status}`;
@@ -512,7 +520,7 @@
     } else {
       el['today-status-badge'].className = 'status-badge status-badge--neutral';
       el['today-status-badge'].textContent = 'Brak wpisu';
-      el['today-status-heading'].textContent = ready ? 'Sprawdź i zapisz' : 'Uzupełnij wpis';
+      el['today-status-heading'].textContent = ready && quickDraftTouched ? 'Propozycja gotowa — jeszcze nie zapisana' : (ready ? 'Sprawdź i zapisz' : 'Uzupełnij wpis');
     }
 
     if (lastRecognizedText) {
@@ -556,12 +564,13 @@
     } else {
       el['main-action-heading'].textContent = `Proponowane miejsce: ${suggestedPlace}`;
       el['main-action-text'].textContent = `Dawka: ${doseText}. Godzina: ${quickDraft.time}. Przed zapisem możesz zmienić dawkę, godzinę albo miejsce.`;
-      el['recommended-save-button'].textContent = 'Przygotuj wpis';
+      el['recommended-save-button'].textContent = 'Użyj propozycji';
     }
 
     if (!ampouleInfo.configured && ampouleInfo.reason === 'start') {
+      el['ampoule-start-main-button'].classList.remove('is-hidden');
       el['recommended-manual-button'].classList.remove('is-hidden');
-      el['recommended-manual-button'].textContent = 'Ustaw datę ampułki';
+      el['recommended-manual-button'].textContent = 'Ustaw inną datę';
     } else if (!ampouleInfo.configured && ampouleInfo.reason === 'dose') {
       el['recommended-manual-button'].classList.remove('is-hidden');
       el['recommended-manual-button'].textContent = 'Ustaw dawkę ampułki';
@@ -575,6 +584,14 @@
     el['ampoule-alert-title'].textContent = ampouleMessage.title;
     el['ampoule-alert-text'].textContent = ampouleMessage.text;
     el['ampoule-alert'].className = `ampoule-alert ampoule-alert--${ampouleMessage.level}`;
+  }
+
+  function quickDraftSaveHelpMessage(ready) {
+    if (quickDraft.status === 'skipped') return 'Gotowe: zapisze pominięcie dawki bez dawki, strony i miejsca.';
+    if (!normalizeDose(quickDraft.dose)) return 'Sprawdź dawkę, aby zapisać podanie.';
+    if (!quickDraft.side || !quickDraft.site) return 'Wybierz miejsce wkłucia, aby zapisać podanie.';
+    if (ready) return 'Gotowe do zapisu. Przed zapisaniem możesz jeszcze zmienić dawkę, godzinę albo miejsce.';
+    return 'Uzupełnij dane, aby zapisać podanie.';
   }
 
   function renderMiniCalendar() {
@@ -759,6 +776,55 @@
     });
   }
 
+  function openPlacePicker() {
+    if (quickDraft.status === 'skipped') {
+      quickDraft.status = 'given';
+      quickDraft.dose = data.settings.defaultDose;
+      quickDraft.unit = data.settings.unit;
+    }
+    renderPlacePickerOptions();
+    if (!el['place-picker-dialog'].open) el['place-picker-dialog'].showModal();
+  }
+
+  function closePlacePicker() {
+    if (el['place-picker-dialog'].open) el['place-picker-dialog'].close();
+  }
+
+  function renderPlacePickerOptions() {
+    el['place-picker-options'].innerHTML = ROTATION.map(([side, site]) => {
+      const active = quickDraft.side === side && quickDraft.site === site;
+      return `
+        <button class="place-option${active ? ' is-active' : ''}" type="button" data-side="${side}" data-site="${site}" aria-pressed="${active ? 'true' : 'false'}">
+          <span>${escapeHtml(capitalize(side))}</span>
+          <strong>${escapeHtml(capitalize(SITE_LABELS[site] || site))}</strong>
+        </button>
+      `;
+    }).join('');
+  }
+
+  function handlePlacePickerSelection(event) {
+    const button = event.target.closest('[data-side][data-site]');
+    if (!button) return;
+    const side = button.dataset.side;
+    const site = button.dataset.site;
+    if (!ALLOWED_SIDES.has(side) || !ALLOWED_SITES.has(site)) return;
+    quickDraft.side = side;
+    quickDraft.site = site;
+    quickDraft.status = 'given';
+    if (!quickDraft.unit) quickDraft.unit = data.settings.unit;
+    if (!quickDraft.dose) quickDraft.dose = data.settings.defaultDose;
+    quickDraftTouched = true;
+    lastRecognizedText = `Wybrano: ${formatPlace(side, site)}`;
+    closePlacePicker();
+    renderToday();
+    el['save-button'].focus({ preventScroll: true });
+  }
+
+  function openPlaceDetailsFromPicker() {
+    closePlacePicker();
+    openEntryDialog(quickDraft.id || null, quickDraft, 'entry-site');
+  }
+
   function openEntryForDate(date, focusId = null) {
     const existing = getEntryForDate(date);
     if (existing) {
@@ -803,6 +869,10 @@
     el['entry-side'].required = given;
     el['entry-site'].required = given;
     el['entry-dose'].required = given;
+    [el['entry-dose'], el['entry-unit'], el['entry-side'], el['entry-site']].forEach((field) => {
+      field.disabled = !given;
+      field.closest('.form-field--given-only')?.classList.toggle('is-hidden', !given);
+    });
   }
 
   function handleEntrySubmit(event) {
@@ -870,7 +940,7 @@
     renderToday();
     document.querySelector('.injection-card')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     el['save-button'].focus({ preventScroll: true });
-    showToast('Propozycja została przygotowana. Możesz zmienić dawkę lub miejsce, albo nacisnąć „Zapisz”.', 'success');
+    showToast('Propozycja gotowa — jeszcze nie zapisana. Sprawdź dane i naciśnij „Zapisz podanie”.', 'success');
   }
 
   function openAmpouleSettings() {
@@ -1266,14 +1336,20 @@
     data.settings.ampouleStartNumber = ampouleStartNumber;
     data.settings.ampouleVolumeMl = ampouleVolume;
     data.settings.ampouleDoseMl = ampouleDoseMl;
-    data.settings.voiceFeedback = el['voice-feedback-toggle'].checked;
-    data.settings.voiceConfirm = el['voice-confirm-toggle'].checked;
     if (!persistData()) return;
     if (!quickDraftTouched && !quickDraft.id) resetQuickDraftForToday();
     renderAll();
     showToast(quickDraftTouched
       ? 'Ustawienia zostały zapisane. Przygotowany wpis pozostał bez zmian.'
       : 'Ustawienia zostały zapisane.', 'success');
+  }
+
+  function saveVoiceSettings() {
+    data.settings.voiceFeedback = el['voice-feedback-toggle'].checked;
+    data.settings.voiceConfirm = el['voice-confirm-toggle'].checked;
+    if (!persistData()) return;
+    renderSettings();
+    showToast('Ustawienia obsługi głosowej zostały zapisane.', 'success');
   }
 
   async function saveReminderSettings() {
@@ -1681,8 +1757,9 @@
   }
 
   function maybeShowFirstRunPermissions() {
-    if (data.meta.onboardingCompleted || !el['permissions-dialog']) return;
-    window.setTimeout(() => openPermissionsDialog(), 250);
+    // Nie blokujemy pierwszego uruchomienia oknem zgód.
+    // Mikrofon pyta o zgodę dopiero przy użyciu obsługi głosowej,
+    // a powiadomienia dopiero przy włączeniu przypomnienia.
   }
 
   async function openPermissionsDialog() {
@@ -1696,6 +1773,13 @@
     if (el['permissions-dialog'].open) el['permissions-dialog'].close();
     scheduleDailyReminder();
     showToast('Ustawienia zgód zostały zapisane.', 'success');
+  }
+
+  function skipPermissionsOnboarding(options = {}) {
+    data.meta.onboardingCompleted = true;
+    persistData();
+    if (el['permissions-dialog'].open) el['permissions-dialog'].close();
+    if (!options.silent) showToast('Pominięto konfigurację zgód. Możesz wrócić do niej w ustawieniach.', 'success');
   }
 
   async function requestMicrophonePermission() {
@@ -1896,8 +1980,12 @@
 
   function configureSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      setVoiceUnavailableState();
+      return;
+    }
 
+    setVoiceReadyState();
     recognition = new SpeechRecognition();
     recognition.lang = 'pl-PL';
     recognition.continuous = false;
@@ -1935,9 +2023,24 @@
     });
   }
 
+  function setVoiceUnavailableState() {
+    el['voice-button'].disabled = true;
+    el['voice-button'].classList.add('is-unavailable');
+    el['voice-button'].querySelector('.voice-button-label').textContent = 'Brak obsługi głosu';
+    el['voice-help'].textContent = 'Ta przeglądarka nie obsługuje rozpoznawania mowy. Wybierz miejsce wkłucia przyciskiem „Miejsce”.';
+  }
+
+  function setVoiceReadyState() {
+    el['voice-button'].disabled = false;
+    el['voice-button'].classList.remove('is-unavailable');
+    el['voice-button'].querySelector('.voice-button-label').textContent = 'Powiedz miejsce';
+    el['voice-help'].textContent = 'Np. „lewy brzuch”, „wczoraj prawe ramię” albo „zapisz”.';
+  }
+
   function toggleVoiceRecognition() {
     if (!recognition) {
-      showToast('Ta przeglądarka nie udostępnia rozpoznawania mowy. Użyj wpisu ręcznego.', 'error');
+      showToast('Ta przeglądarka nie udostępnia rozpoznawania mowy. Wybierz miejsce ręcznie.', 'error');
+      openPlacePicker();
       return;
     }
     if (isListening) {
@@ -2156,7 +2259,8 @@
 
     if (event.key === 'Escape') {
       if (el['entry-dialog'].open) closeEntryDialog();
-      else if (el['permissions-dialog'].open && data.meta.onboardingCompleted) el['permissions-dialog'].close();
+      else if (el['place-picker-dialog'].open) closePlacePicker();
+      else if (el['permissions-dialog'].open) el['permissions-dialog'].close();
       else stopVoiceRecognition();
       return;
     }

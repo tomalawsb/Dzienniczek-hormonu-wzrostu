@@ -1,0 +1,39 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.9 - 2506260900
+
+Zakres poprawek UX/logiki:
+1. Ekran „Dzisiaj”
+   - Zmieniono nazwę głównego przycisku z „Przygotuj wpis” na „Użyj propozycji”.
+   - Zmieniono przycisk zapisu na „Zapisz podanie”.
+   - Dodano stały komunikat pod przyciskiem zapisu: informuje, czy brakuje miejsca, dawki, czy wpis jest gotowy.
+   - Po użyciu propozycji aplikacja pokazuje stan „Propozycja gotowa — jeszcze nie zapisana”.
+
+2. Ampułka
+   - Przycisk „Rozpocznij ampułkę dzisiaj” jest teraz widoczny, gdy aplikacja nie ma ustawionej daty startu ampułki.
+   - Obok zostawiono skrót „Ustaw inną datę”, gdy użytkownik chce wskazać inną datę w ustawieniach.
+
+3. Mikrofon i obsługa głosowa
+   - Gdy przeglądarka nie obsługuje SpeechRecognition, mikrofon nie udaje aktywnej funkcji: jest wyszarzony i ma opis „Brak obsługi głosu”.
+   - Dodano przycisk „Zapisz obsługę głosową” w tej samej karcie ustawień.
+
+4. Zgody aplikacji
+   - Pierwsze uruchomienie nie jest już blokowane oknem zgód.
+   - Dodano przycisk „Pomiń na razie”.
+   - Zgody nadal są dostępne w sekcji „Zgody aplikacji”.
+
+5. Wybór miejsca wkłucia
+   - Kliknięcie pola „Miejsce” otwiera szybki panel wyboru strony i miejsca.
+   - Pełny formularz zostaje dostępny przez „Edytuj szczegóły”.
+
+6. Formularz wpisu
+   - Po wyborze statusu „Pominięto” ukrywane są pola: dawka, jednostka, strona i miejsce.
+   - Przy powrocie do „Podano” pola wracają i są ponownie wymagane.
+
+7. Historia na telefonie
+   - Na mobile tabela historii zmienia się w listę kart.
+   - Usunięto wymuszone poziome przewijanie jako główny sposób korzystania z historii na telefonie.
+
+Testy wykonane po zmianach:
+- python3 tests/validate_project.py
+- node --check app.js
+- node tests/logic_test.mjs
+- test poprawności pliku ZIP

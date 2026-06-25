@@ -69,7 +69,6 @@
         </div>
 
         <div class="topbar-actions">
-          <button id="quick-add-button" class="icon-button is-hidden" type="button" aria-label="Dodaj wpis ręcznie" title="Dodaj wpis ręcznie (Alt+N)">＋</button>
           <button id="header-install-button" class="icon-button is-hidden" type="button" aria-label="Zainstaluj aplikację" title="Zainstaluj aplikację">⇩</button>
         </div>
       </header>
@@ -89,7 +88,7 @@
               </div>
             </div>
             <div class="action-card__actions">
-              <button id="recommended-save-button" class="button button--primary" type="button">Przygotuj wpis</button>
+              <button id="recommended-save-button" class="button button--primary" type="button">Użyj propozycji</button>
               <button id="ampoule-start-main-button" class="button button--secondary is-hidden" type="button">Rozpocznij ampułkę dzisiaj</button>
               <button id="recommended-manual-button" class="button button--secondary is-hidden" type="button">Ustaw ampułkę</button>
             </div>
@@ -143,9 +142,10 @@
 
               <div class="primary-actions">
                 <button id="save-button" class="button button--primary" type="button" disabled>
-                  <span aria-hidden="true">✓</span> Zapisz
+                  <span aria-hidden="true">✓</span> Zapisz podanie
                 </button>
               </div>
+              <p id="save-help" class="save-help" aria-live="polite">Wybierz miejsce wkłucia, aby zapisać.</p>
 
               <button id="skip-button" class="link-button" type="button">Oznacz dawkę jako pominiętą</button>
             </article>
@@ -403,6 +403,7 @@
                 <strong>Przykłady poleceń</strong>
                 <span>„lewy brzuch”, „wczoraj”, potem „prawe ramię”, „dawka jeden przecinek jeden”, „pomiń dzisiaj”, „zapisz”.</span>
               </div>
+              <button id="save-voice-settings-button" class="button button--primary button--small" type="button">Zapisz obsługę głosową</button>
             </article>
 
             <article class="card settings-card">
@@ -495,6 +496,7 @@
       </div>
 
       <div class="dialog-actions permissions-actions">
+        <button id="permissions-skip-button" class="button button--secondary" type="button">Pomiń na razie</button>
         <button id="permissions-finish-button" class="button button--primary" type="button">Przejdź do aplikacji</button>
       </div>
     </div>
@@ -521,11 +523,11 @@
           <span>Godzina</span>
           <input id="entry-time" type="time" required>
         </label>
-        <label>
+        <label class="form-field--given-only">
           <span>Dawka</span>
           <input id="entry-dose" inputmode="decimal" autocomplete="off" required>
         </label>
-        <label>
+        <label class="form-field--given-only">
           <span>Jednostka</span>
           <select id="entry-unit">
             <option value="mg">mg</option>
@@ -534,7 +536,7 @@
             <option value="j.m.">j.m.</option>
           </select>
         </label>
-        <label>
+        <label class="form-field--given-only">
           <span>Strona</span>
           <select id="entry-side" required>
             <option value="">Wybierz</option>
@@ -542,7 +544,7 @@
             <option value="prawa">Prawa</option>
           </select>
         </label>
-        <label>
+        <label class="form-field--given-only">
           <span>Miejsce</span>
           <select id="entry-site" required>
             <option value="">Wybierz</option>
@@ -573,6 +575,23 @@
         <button class="button button--primary button--small" type="submit">Zapisz wpis</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="place-picker-dialog" class="place-picker-dialog" aria-labelledby="place-picker-title">
+    <div class="place-picker-content">
+      <div class="dialog-header dialog-header--compact">
+        <div>
+          <p class="eyebrow">Miejsce wkłucia</p>
+          <h2 id="place-picker-title">Wybierz miejsce</h2>
+          <p class="muted">Wybierz stronę i miejsce. Dawka oraz godzina zostają bez zmian.</p>
+        </div>
+        <button id="place-picker-close-button" class="icon-button" type="button" aria-label="Zamknij">×</button>
+      </div>
+      <div id="place-picker-options" class="place-picker-options"></div>
+      <div class="dialog-actions">
+        <button id="place-picker-edit-button" class="button button--secondary button--small" type="button">Edytuj szczegóły</button>
+      </div>
+    </div>
   </dialog>
 
   <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
