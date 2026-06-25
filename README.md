@@ -1,6 +1,6 @@
 # Dzienniczek hormonu wzrostu
 
-Wersja: **1.7 - 2506260811**
+Wersja: **1.8 - 2506260830**
 
 Aplikacja do zapisywania podań hormonu wzrostu na telefonie i komputerze.
 

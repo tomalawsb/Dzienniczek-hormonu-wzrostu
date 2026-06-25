@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gh-dzienniczek-v1.7';
+const CACHE_NAME = 'gh-dzienniczek-v1.8';
 const STATE_CACHE = 'gh-dzienniczek-reminder-state-v1';
 const STATE_URL = new URL('./__reminder_state__', self.registration.scope).href;
 

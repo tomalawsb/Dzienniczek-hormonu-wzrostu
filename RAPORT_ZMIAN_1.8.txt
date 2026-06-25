@@ -1,0 +1,15 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.8 - 2506260830
+
+Zakres poprawki:
+- usunięto z ekranu głównego przycisk „Wpisz ręcznie”, ponieważ powielał działanie pól Data, Dawka, Godzina i Miejsce,
+- pozostawiono jeden główny przepływ zapisu: ustaw dane w kafelkach/polu miejsca i zapisz,
+- zmieniono komunikat o nowej ampułce na prosty tekst dla użytkownika: „Ta ampułka zaczyna się dzisiaj. Po dzisiejszej dawce zostanie około ... ml.”,
+- usunięto z widocznych komunikatów zbędne wyjaśnienie „automatycznie, bo poprzednia została zakończona”,
+- uproszczono opis ustawień ampułki,
+- zaktualizowano wersję aplikacji i cache service workera.
+
+Kontrola:
+- node --check app.js — OK,
+- python3 tests/validate_project.py — OK,
+- node tests/logic_test.mjs — OK,
+- unzip -t paczki — OK.

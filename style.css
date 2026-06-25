@@ -402,7 +402,7 @@ h2 { margin: 0; font-size: clamp(1.15rem, 1.5vw, 1.45rem); line-height: 1.2; }
 
 .primary-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 16px;
 }

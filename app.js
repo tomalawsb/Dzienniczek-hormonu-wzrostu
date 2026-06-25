@@ -106,7 +106,7 @@
       'current-date-label', 'today-entry-date', 'today-dose', 'today-time', 'today-status-heading', 'today-status-badge',
       'main-action-heading', 'main-action-text', 'recommended-save-button', 'recommended-manual-button',
       'ampoule-start-main-button', 'ampoule-alert', 'ampoule-alert-title', 'ampoule-alert-text',
-      'voice-button', 'voice-result', 'voice-result-text', 'selected-place', 'save-button', 'edit-button',
+      'voice-button', 'voice-result', 'voice-result-text', 'selected-place', 'save-button',
       'skip-button', 'last-place', 'suggested-place', 'ampoule-status', 'use-suggestion-button', 'mini-calendar', 'recent-list',
       'quick-add-button', 'date-chip', 'dose-chip', 'time-chip', 'place-field', 'entry-dialog', 'entry-form',
       'entry-dialog-title', 'entry-id', 'entry-date', 'entry-time', 'entry-dose', 'entry-unit', 'entry-side',
@@ -144,7 +144,6 @@
 
     el['quick-add-button'].addEventListener('click', () => openEntryForDate(localDateISO()));
     el['date-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-date'));
-    el['edit-button'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
     el['place-field'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft));
     el['dose-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-dose'));
     el['time-chip'].addEventListener('click', () => openEntryDialog(quickDraft.id || null, quickDraft, 'entry-time'));
@@ -503,9 +502,6 @@
     el['save-button'].innerHTML = editingExisting
       ? '<span aria-hidden="true">✓</span> Zapisz zmiany'
       : '<span aria-hidden="true">✓</span> Zapisz';
-    el['edit-button'].innerHTML = editingExisting
-      ? '<span aria-hidden="true">✎</span> Edytuj szczegóły'
-      : '<span aria-hidden="true">✎</span> Wpisz ręcznie';
 
     if (todayEntry) {
       el['today-status-badge'].className = `status-badge status-badge--${todayEntry.status}`;
@@ -1017,7 +1013,7 @@
         level: 'warning',
         short: 'Brak daty rozpoczęcia',
         title: 'Ampułka: ustaw datę rozpoczęcia',
-        text: 'Ustaw datę rozpoczęcia ampułki. Kolejne ampułki aplikacja policzy automatycznie po zapisanych podaniach.'
+        text: 'Ustaw datę rozpoczęcia obecnej ampułki i jej numer. Potem aplikacja pokaże stan ampułki po zapisanych podaniach.'
       };
     }
     if (!info.configured && info.reason === 'dose') {
@@ -1034,7 +1030,7 @@
         level: 'danger',
         short: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
         title: `Ampułka ${info.ampouleNumber}: ostatni zastrzyk`,
-        text: `${prefix} ostatnim zastrzykiem z ampułki ${info.ampouleNumber}. Następna ampułka zacznie się automatycznie przy kolejnym podaniu, planowo ${formatDateShort(info.nextAmpouleStartDate)}.`
+        text: `${prefix} ostatnim zastrzykiem z ampułki ${info.ampouleNumber}. Następna ampułka zacznie się przy kolejnym podaniu, planowo ${formatDateShort(info.nextAmpouleStartDate)}.`
       };
     }
     if (info.todayStartsNewAmpoule) {
@@ -1042,7 +1038,7 @@
         level: 'ok',
         short: `Ampułka ${info.ampouleNumber}: rozpoczęta dzisiaj`,
         title: `Ampułka ${info.ampouleNumber}: nowa ampułka`,
-        text: `Ta ampułka zaczyna się dzisiaj automatycznie, bo poprzednia została zakończona. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml.`
+        text: `Ta ampułka zaczyna się dzisiaj. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml.`
       };
     }
     return {
@@ -1056,7 +1052,7 @@
   function ampouleNotificationText(info) {
     if (!info.configured) return '';
     if (info.todayIsLast) return `Dzisiaj jest ostatni zastrzyk z tej ampułki. Nowa ampułka zacznie się planowo ${formatDateShort(info.nextAmpouleStartDate)}.`;
-    if (info.todayStartsNewAmpoule) return `Dzisiaj zaczyna się ampułka ${info.ampouleNumber}.`;
+    if (info.todayStartsNewAmpoule) return `Ta ampułka zaczyna się dzisiaj. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml.`;
     return `Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml w ampułce.`;
   }
 
