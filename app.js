@@ -516,7 +516,7 @@
     } else {
       el['today-status-badge'].className = 'status-badge status-badge--neutral';
       el['today-status-badge'].textContent = 'Brak wpisu';
-      el['today-status-heading'].textContent = ready ? 'Sprawdź i zapisz' : 'Gotowe do zapisania';
+      el['today-status-heading'].textContent = ready ? 'Sprawdź i zapisz' : 'Uzupełnij wpis';
     }
 
     if (lastRecognizedText) {
@@ -545,8 +545,8 @@
 
     el['recommended-save-button'].classList.remove('is-hidden');
     el['recommended-save-button'].disabled = false;
-    el['recommended-manual-button'].classList.remove('is-hidden');
-    el['recommended-manual-button'].textContent = 'Ustawienia ampułki';
+    el['recommended-manual-button'].classList.add('is-hidden');
+    el['recommended-manual-button'].textContent = 'Ustaw ampułkę';
     el['ampoule-start-main-button'].classList.add('is-hidden');
 
     if (todayEntry?.status === 'given') {
@@ -559,15 +559,18 @@
       el['recommended-save-button'].textContent = 'Edytuj dzisiejszy wpis';
     } else {
       el['main-action-heading'].textContent = `Proponowane miejsce: ${suggestedPlace}`;
-      el['main-action-text'].textContent = `To jest najważniejsza informacja na teraz. Dawka: ${doseText}, godzina: ${quickDraft.time}. Po wybraniu propozycji możesz jeszcze zmienić dawkę albo miejsce przed zapisem.`;
-      el['recommended-save-button'].textContent = 'Wybierz tę propozycję';
+      el['main-action-text'].textContent = `Dawka: ${doseText}. Godzina: ${quickDraft.time}. Przed zapisem możesz zmienić dawkę, godzinę albo miejsce.`;
+      el['recommended-save-button'].textContent = 'Przygotuj wpis';
     }
 
     if (!ampouleInfo.configured && ampouleInfo.reason === 'start') {
+      el['recommended-manual-button'].classList.remove('is-hidden');
       el['recommended-manual-button'].textContent = 'Ustaw datę ampułki';
     } else if (!ampouleInfo.configured && ampouleInfo.reason === 'dose') {
+      el['recommended-manual-button'].classList.remove('is-hidden');
       el['recommended-manual-button'].textContent = 'Ustaw dawkę ampułki';
     } else if (ampouleInfo.todayIsLast) {
+      el['recommended-manual-button'].classList.remove('is-hidden');
       el['recommended-manual-button'].textContent = 'Ustawienia ampułki';
     }
 
@@ -890,7 +893,7 @@
     if (el['ampoule-start-date']) el['ampoule-start-date'].value = data.settings.ampouleStartDate;
     if (!persistData()) return;
     renderAll();
-    showToast('Ustawiono dzisiejszy dzień jako start ampułki bazowej.', 'success');
+    showToast('Ustawiono dzisiejszą datę rozpoczęcia ampułki.', 'success');
   }
 
   function saveQuickDraft() {
@@ -1012,9 +1015,9 @@
     if (!info.configured && info.reason === 'start') {
       return {
         level: 'warning',
-        short: 'Brak daty startu',
-        title: 'Ampułka: ustaw start',
-        text: 'W ustawieniach wybierz datę startu znanej ampułki bazowej. Kolejne ampułki program policzy automatycznie.'
+        short: 'Brak daty rozpoczęcia',
+        title: 'Ampułka: ustaw datę rozpoczęcia',
+        text: 'Ustaw datę rozpoczęcia ampułki. Kolejne ampułki aplikacja policzy automatycznie po zapisanych podaniach.'
       };
     }
     if (!info.configured && info.reason === 'dose') {
@@ -1022,7 +1025,7 @@
         level: 'warning',
         short: 'Brak dawki w ml',
         title: 'Ampułka: brak dawki w ml',
-        text: 'Aby liczyć koniec ampułki 10 ml, ustaw ile ml schodzi na jedno podanie albo wybierz jednostkę ml.'
+        text: 'Aby liczyć zużycie ampułki 10 ml, ustaw zużycie na jedno podanie w ml albo wybierz jednostkę ml.'
       };
     }
     if (info.todayIsLast) {
@@ -1037,7 +1040,7 @@
     if (info.todayStartsNewAmpoule) {
       return {
         level: 'ok',
-        short: `Ampułka ${info.ampouleNumber}: start dzisiaj`,
+        short: `Ampułka ${info.ampouleNumber}: rozpoczęta dzisiaj`,
         title: `Ampułka ${info.ampouleNumber}: nowa ampułka`,
         text: `Ta ampułka zaczyna się dzisiaj automatycznie, bo poprzednia została zakończona. Po dzisiejszej dawce zostanie około ${formatMl(info.remainingAfterToday)} ml.`
       };
@@ -1252,7 +1255,7 @@
     const ampouleDoseMl = normalizeOptionalPositiveDecimal(el['ampoule-dose-ml'].value);
     const ampouleStartDate = el['ampoule-start-date'].value;
     if (ampouleStartDate && !isValidIsoDate(ampouleStartDate)) {
-      showToast('Podaj prawidłową datę startu ampułki bazowej.', 'error');
+      showToast('Podaj prawidłową datę rozpoczęcia ampułki.', 'error');
       return;
     }
     if (el['ampoule-dose-ml'].value.trim() && !ampouleDoseMl) {
@@ -1311,7 +1314,7 @@
   function formatReportAmpouleCell(row) {
     if (!row) return '—';
     const suffixes = [];
-    if (row.startsNewAmpoule) suffixes.push('start');
+    if (row.startsNewAmpoule) suffixes.push('rozpoczęcie');
     if (row.isLastDose) suffixes.push('koniec');
     return suffixes.length ? `${row.ampouleNumber} — ${suffixes.join(', ')}` : String(row.ampouleNumber);
   }
@@ -1465,10 +1468,10 @@
       ['word/document.xml', buildDocxDocumentXml()],
       ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-          <dc:title>Dzienniczek hormonu wzrostu</dc:title><dc:creator>Dzienniczek hormonu wzrostu PWA</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+          <dc:title>Dzienniczek hormonu wzrostu</dc:title><dc:creator>Dzienniczek hormonu wzrostu</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
         </cp:coreProperties>`],
       ['docProps/app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Dzienniczek hormonu wzrostu PWA</Application></Properties>`]
+        <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Dzienniczek hormonu wzrostu</Application></Properties>`]
     ];
     return new Blob([buildStoredZip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   }

@@ -1,0 +1,19 @@
+Dzienniczek hormonu wzrostu – raport zmian 1.7 - 2506260811
+
+Zakres poprawki:
+1. Usunięto z ekranu głównego teksty robocze i techniczne, które brzmiały jak opis dla programisty.
+2. Zmieniono teksty strony głównej na krótkie, poważne komunikaty dla użytkownika.
+3. Usunięto widoczne dublowanie funkcji „użyj propozycji” z bocznego panelu.
+4. Na stronie głównej pozostawiono jeden główny przepływ: propozycja miejsca → przygotuj wpis → sprawdź → zapisz.
+5. Przycisk ustawień ampułki na stronie głównej jest pokazywany tylko wtedy, gdy faktycznie wymaga tego konfiguracja albo stan ampułki.
+6. Zmieniono opisy ustawień ampułki: bez określenia „ampułka bazowa”.
+7. Usunięto z interfejsu klienta tekst o GitHub Pages i PWA.
+8. Zachowano raport w kolejności od najstarszych do najnowszych wpisów.
+9. W raporcie pozostawiono informacje o numerze ampułki, dacie jej rozpoczęcia i ilości pozostałej po wpisie.
+10. Zmieniono opis rozpoczęcia ampułki w raporcie z „start” na „rozpoczęcie”.
+
+Kontrola:
+- node --check app.js
+- python3 tests/validate_project.py
+- node tests/logic_test.mjs
+- unzip -t paczki ZIP

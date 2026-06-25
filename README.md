@@ -1,8 +1,8 @@
-# Dzienniczek hormonu wzrostu PWA
+# Dzienniczek hormonu wzrostu
 
-Wersja: **1.6 - 2406262227**
+Wersja: **1.7 - 2506260811**
 
-Responsywna aplikacja PWA do zapisywania podań hormonu wzrostu na telefonie i komputerze. Projekt jest przeznaczony do publikacji przez GitHub Pages.
+Aplikacja do zapisywania podań hormonu wzrostu na telefonie i komputerze.
 
 ## Najważniejsze funkcje
 
@@ -44,9 +44,9 @@ Aplikacja nie pozwala utworzyć dwóch wpisów z tą samą datą. Jeśli wpis dl
 
 ## Ampułka 10 ml
 
-W ustawieniach należy wskazać datę rozpoczęcia znanej ampułki oraz jej numer. Program dalej sam liczy kolejne ampułki po rzeczywistych podaniach. Jeśli poprzednia ampułka została zakończona, następna zacznie się automatycznie przy kolejnym podaniu. Pominięta dawka nie zużywa ampułki i nie rozpoczyna nowej.
+W ustawieniach należy wskazać datę rozpoczęcia ampułki oraz jej numer. Aplikacja liczy kolejne ampułki po rzeczywistych podaniach. Jeśli poprzednia ampułka została zakończona, następna zacznie się automatycznie przy kolejnym podaniu. Pominięta dawka nie zużywa ampułki i nie rozpoczyna nowej.
 
-Program liczy zużycie technicznie na podstawie pojemności ampułki i dawki zużywanej w ml. Jeśli domyślna jednostka dawki to `ml`, używana jest dawka domyślna. Przy jednostkach `mg`, `IU` albo `j.m.` trzeba wpisać osobno zużycie w ml, bo aplikacja nie przelicza medycznie mg/IU na ml.
+Zużycie ampułki jest liczone na podstawie jej pojemności i dawki zużywanej w ml. Jeśli domyślna jednostka dawki to `ml`, używana jest dawka domyślna. Przy jednostkach `mg`, `IU` albo `j.m.` trzeba wpisać osobno zużycie w ml, bo aplikacja nie przelicza medycznie mg/IU na ml.
 
 Na ekranie głównym pojawia się status ampułki. Gdy dzisiejsza dawka jest ostatnia z bieżącej ampułki, aplikacja pokazuje komunikat i dopisuje tę informację do powiadomienia.
 
@@ -59,7 +59,7 @@ Czas na zastrzyk
 Dzisiaj: lewe udo. Dawka: 1,1 mg. Dzisiaj jest ostatni zastrzyk z tej ampułki.
 ```
 
-GitHub Pages jest hostingiem statycznym. Przypomnienie działa najpewniej, gdy aplikacja jest otwarta lub system pozwala jej pracować w tle. Po całkowitym zamknięciu przeglądarki dokładna godzina nie jest gwarantowana. Niezawodne powiadomienia o określonej godzinie wymagają wersji natywnej APK albo serwera Web Push.
+Przypomnienie zależy od ustawień telefonu i przeglądarki. Dla pewności nie należy całkowicie zamykać aplikacji przed godziną przypomnienia.
 
 ## Eksport raportów
 

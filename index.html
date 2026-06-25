@@ -80,18 +80,18 @@
 
           <article class="card action-card" aria-labelledby="main-action-heading">
             <div class="action-card__content">
-              <p class="eyebrow">Co teraz zrobić</p>
+              <p class="eyebrow">Dzisiejsza propozycja</p>
               <h2 id="main-action-heading">Proponowane miejsce: —</h2>
-              <p id="main-action-text" class="muted">Proponowane miejsce wkłucia jest teraz najważniejszą informacją na ekranie.</p>
+              <p id="main-action-text" class="muted">Sprawdź propozycję, dawkę i godzinę przed zapisaniem.</p>
               <div id="ampoule-alert" class="ampoule-alert" role="status" aria-live="polite">
                 <strong id="ampoule-alert-title">Ampułka</strong>
-                <span id="ampoule-alert-text">W ustawieniach wybierz datę startu znanej ampułki bazowej.</span>
+                <span id="ampoule-alert-text">Ustaw datę rozpoczęcia ampułki, aby aplikacja mogła liczyć jej zużycie.</span>
               </div>
             </div>
             <div class="action-card__actions">
-              <button id="recommended-save-button" class="button button--primary" type="button">Wybierz tę propozycję</button>
-              <button id="ampoule-start-main-button" class="button button--secondary is-hidden" type="button">Ustaw datę ampułki na dzisiaj</button>
-              <button id="recommended-manual-button" class="button button--secondary" type="button">Ustawienia ampułki</button>
+              <button id="recommended-save-button" class="button button--primary" type="button">Przygotuj wpis</button>
+              <button id="ampoule-start-main-button" class="button button--secondary is-hidden" type="button">Rozpocznij ampułkę dzisiaj</button>
+              <button id="recommended-manual-button" class="button button--secondary is-hidden" type="button">Ustaw ampułkę</button>
             </div>
           </article>
 
@@ -100,7 +100,7 @@
               <div class="card-heading-row">
                 <div>
                   <p class="eyebrow">Dzisiejsze podanie</p>
-                  <h2 id="today-status-heading">Gotowe do zapisania</h2>
+                  <h2 id="today-status-heading">Uzupełnij wpis</h2>
                 </div>
                 <span id="today-status-badge" class="status-badge status-badge--neutral">Brak wpisu</span>
               </div>
@@ -162,21 +162,9 @@
                     <strong id="last-place">Brak wcześniejszych wpisów</strong>
                   </div>
                 </div>
-                <div class="info-row">
-                  <span class="info-icon info-icon--green" aria-hidden="true">✦</span>
-                  <div>
-                    <span>Proponowane miejsce</span>
-                    <strong id="suggested-place">Lewy brzuch</strong>
-                  </div>
-                  <button id="use-suggestion-button" class="mini-button" type="button">Użyj</button>
-                </div>
-                <div class="info-row">
-                  <span class="info-icon info-icon--warning" aria-hidden="true">◌</span>
-                  <div>
-                    <span>Ampułka</span>
-                    <strong id="ampoule-status">Ustaw rozpoczęcie</strong>
-                  </div>
-                </div>
+                <span id="suggested-place" hidden></span>
+                <strong id="ampoule-status" hidden>Ustaw rozpoczęcie</strong>
+                <button id="use-suggestion-button" class="mini-button is-hidden" type="button" hidden aria-hidden="true"></button>
               </article>
 
               <article class="card calendar-preview-card">
@@ -340,16 +328,16 @@
               <div class="settings-subsection">
                 <div class="settings-subsection__header">
                   <h3>Ampułka</h3>
-                  <span class="settings-hint">Wybierz datę startu znanej ampułki bazowej.</span>
+                  <span class="settings-hint">Ustaw datę rozpoczęcia i numer ampułki.</span>
                 </div>
-                <p class="muted">Program liczy kolejne ampułki automatycznie od ustawionej daty i numeru. Jeżeli ampułka bazowa to 13, wpisz numer 13 przy dacie jej startu.</p>
+                <p class="muted">Na podstawie tej daty aplikacja oblicza zużycie obecnej ampułki i automatycznie przechodzi do kolejnej po jej zakończeniu.</p>
                 <div class="form-grid form-grid--settings">
                   <label>
-                    <span>Data startu ampułki bazowej</span>
+                    <span>Data rozpoczęcia ampułki</span>
                     <input id="ampoule-start-date" type="date">
                   </label>
                   <label>
-                    <span>Numer ampułki bazowej</span>
+                    <span>Numer tej ampułki</span>
                     <input id="ampoule-start-number" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value="1">
                   </label>
                   <label>
@@ -357,14 +345,14 @@
                     <input id="ampoule-volume" inputmode="decimal" autocomplete="off" value="10">
                   </label>
                   <label>
-                    <span>Ile ml schodzi na jedno podanie</span>
+                    <span>Zużycie na jedno podanie w ml</span>
                     <input id="ampoule-dose-ml" inputmode="decimal" autocomplete="off" placeholder="np. 1,0">
                   </label>
                 </div>
                 <div class="button-row-wrap">
-                  <button id="ampoule-start-today-button" class="button button--secondary button--small" type="button">Ustaw datę ampułki na dzisiaj</button>
+                  <button id="ampoule-start-today-button" class="button button--secondary button--small" type="button">Rozpocznij ampułkę dzisiaj</button>
                 </div>
-                <p class="muted">Po dotknięciu pola daty otworzy się kalendarz telefonu. Gdy domyślna jednostka to ml, program użyje dawki domyślnej. W innych jednostkach wpisz osobno zużycie w ml.</p>
+                <p class="muted">Jeżeli dawka jest podawana w ml, aplikacja użyje dawki domyślnej. Przy innych jednostkach wpisz osobno zużycie w ml.</p>
               </div>
 
               <button id="save-settings-button" class="button button--primary button--small" type="button">Zapisz główne ustawienia</button>
@@ -394,7 +382,7 @@
                 <button id="request-notification-button" class="button button--secondary button--small" type="button">Zezwól na powiadomienia</button>
                 <button id="test-notification-button" class="button button--secondary button--small" type="button">Wyślij test</button>
               </div>
-              <p class="muted reminder-note">Na GitHub Pages przypomnienie działa najpewniej, gdy aplikacja jest otwarta lub system pozwala jej pracować w tle. Po całkowitym zamknięciu przeglądarki dokładna godzina nie jest gwarantowana.</p>
+              <p class="muted reminder-note">Powiadomienia zależą od ustawień telefonu i przeglądarki. Dla pewności nie zamykaj całkowicie aplikacji przed godziną przypomnienia.</p>
               <button id="save-reminder-button" class="button button--primary button--small" type="button">Zapisz przypomnienie</button>
             </article>
 
@@ -461,7 +449,7 @@
             <article class="card settings-card settings-card--wide">
               <h2>Informacje</h2>
               <p>Aplikacja pozwala zapisać tylko jeden wpis dziennie. Nie dobiera dawki i nie zastępuje zaleceń lekarza.</p>
-              <button id="settings-install-button" class="button button--primary button--small is-hidden" type="button">Zainstaluj aplikację PWA</button>
+              <button id="settings-install-button" class="button button--primary button--small is-hidden" type="button">Zainstaluj aplikację</button>
             </article>
           </div>
         </section>
